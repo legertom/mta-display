@@ -560,7 +560,16 @@ app.get('/api/arrivals', async (req, res) => {
 
     try {
       // For B49 to Bed Stuy Fulton St at Rogers and Lenox Road
-      result.buses.b49 = await fetchBusData('B49', B49_ROGERS_LENOX_STOP, 'Fulton');
+      // Try with direction filter first
+      let b49Arrivals = await fetchBusData('B49', B49_ROGERS_LENOX_STOP, 'Fulton');
+      
+      // If no results with direction filter, try without it (some buses might not have clear direction in headsign)
+      if (b49Arrivals.length === 0) {
+        console.log('B49: No results with direction filter, trying without direction filter');
+        b49Arrivals = await fetchBusData('B49', B49_ROGERS_LENOX_STOP, null);
+      }
+      
+      result.buses.b49 = b49Arrivals;
     } catch (error) {
       console.error('Error fetching B49 data:', error.message);
       errors.push('B49 bus data temporarily unavailable');
