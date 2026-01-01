@@ -62,29 +62,73 @@ function formatOccupancyStatus(occupancyStatus, occupancyPercentage, passengerCo
         status = statusMap[occupancyStatus] || { text: 'Unknown', class: 'occupancy-unknown', emoji: '⚪' };
     }
     
-    // Prefer passenger count if available (more specific)
-    if (passengerCount !== undefined && passengerCount !== null) {
-        let display = `${passengerCount} ${passengerCount === 1 ? 'rider' : 'riders'}`;
-        
-        // Add percentage if we have capacity data
-        if (occupancyPercentage !== undefined && occupancyPercentage !== null) {
-            display += ` (${occupancyPercentage}% full)`;
-        } else if (passengerCapacity !== undefined && passengerCapacity !== null && passengerCapacity > 0) {
-            // Calculate percentage if we have count and capacity
-            const calculatedPercentage = Math.round((passengerCount / passengerCapacity) * 100);
-            display += ` (${calculatedPercentage}% full)`;
-        }
-        
-        return `<span class="occupancy-badge ${status.class}">${display}</span>`;
-    }
-    
-    let display = status.emoji + ' ' + status.text;
-    
+    // Calculate percentage for status bar
+    let percentage = null;
     if (occupancyPercentage !== undefined && occupancyPercentage !== null) {
-        display += ` (${occupancyPercentage}%)`;
+        percentage = Math.max(0, Math.min(100, occupancyPercentage));
+    } else if (passengerCapacity !== undefined && passengerCapacity !== null && passengerCapacity > 0 && passengerCount !== undefined && passengerCount !== null) {
+        percentage = Math.max(0, Math.min(100, Math.round((passengerCount / passengerCapacity) * 100)));
     }
     
-    return `<span class="occupancy-badge ${status.class}">${display}</span>`;
+    // Determine status bar color based on percentage
+    let statusBarClass = 'status-bar-low';
+    if (percentage !== null) {
+        if (percentage >= 80) {
+            statusBarClass = 'status-bar-high';
+        } else if (percentage >= 50) {
+            statusBarClass = 'status-bar-medium';
+        }
+    }
+    
+    // Build status bar HTML - just the bar, no text labels
+    let statusBarHtml = '';
+    if (percentage !== null) {
+        statusBarHtml = `
+            <div class="occupancy-status-bar">
+                <div class="status-bar-container">
+                    <div class="status-bar-fill ${statusBarClass}" style="width: ${percentage}%"></div>
+                </div>
+            </div>
+        `;
+    }
+    
+    // Return just the status bar (no rider count or percentage text)
+    if (statusBarHtml) {
+        return `<div class="occupancy-info">${statusBarHtml}</div>`;
+    }
+    
+    // Fallback: if no percentage data, return empty
+    return '';
+}
+
+// Get subway route badge class
+function getSubwayBadgeClass(route) {
+    const routeMap = {
+        'B': 'subway-b',
+        'Q': 'subway-q',
+        '2': 'subway-2',
+        '5': 'subway-5',
+        'N': 'subway-n',
+        'R': 'subway-r',
+        'W': 'subway-w',
+        '1': 'subway-1',
+        '3': 'subway-3',
+        '4': 'subway-4',
+        '6': 'subway-6',
+        '7': 'subway-7',
+        'A': 'subway-a',
+        'C': 'subway-c',
+        'E': 'subway-e',
+        'D': 'subway-d',
+        'F': 'subway-f',
+        'M': 'subway-m',
+        'G': 'subway-g',
+        'J': 'subway-j',
+        'Z': 'subway-z',
+        'L': 'subway-l',
+        'S': 'subway-s'
+    };
+    return routeMap[route] || 'subway-default';
 }
 
 // Format arrival item
@@ -153,9 +197,18 @@ function createArrivalItem(arrival, isSubway = false) {
       }
     }
 
+    // Create route display - circular badge for subway, regular for bus
+    let routeDisplay;
+    if (isSubway) {
+        const badgeClass = getSubwayBadgeClass(route);
+        routeDisplay = `<span class="route-badge ${badgeClass}">${route}</span>`;
+    } else {
+        routeDisplay = `<div class="arrival-route">${route}</div>`;
+    }
+
     item.innerHTML = `
         <div class="arrival-info">
-            <div class="arrival-route">${route}</div>
+            ${routeDisplay}
             <div class="arrival-details">
                 ${serviceInfo}
                 ${occupancyInfo ? `<div class="arrival-occupancy">${occupancyInfo}</div>` : ''}
