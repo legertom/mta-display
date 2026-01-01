@@ -19,8 +19,10 @@ const BUS_TIME_API_KEY = process.env.BUS_TIME_API_KEY || '';
 // B and Q trains are on different feeds:
 // - B train: BDFM feed
 // - Q train: NQRW feed
+// - 2 and 5 trains: 1234567S feed
 const B_TRAIN_FEED_URL = 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-bdfm';
 const Q_TRAIN_FEED_URL = 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-nqrw';
+const IRT_FEED_URL = 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-1234567S';
 
 // Bus Time API base URL
 const BUS_TIME_BASE_URL = 'https://bustime.mta.info/api/where';
@@ -28,6 +30,8 @@ const BUS_TIME_BASE_URL = 'https://bustime.mta.info/api/where';
 // Stop IDs (these may need to be verified/updated)
 // Church Ave stop for B/Q trains (Manhattan-bound)
 const CHURCH_AVE_STOP_ID = 'D28N'; // Northbound (Manhattan-bound) at Church Ave
+// Winthrop St stop for 2/5 trains (Manhattan-bound)
+const WINTHROP_STOP_ID = '235N'; // Northbound (Manhattan-bound) at Winthrop St
 
 // Bus stop IDs
 // B41 stops on Flatbush Avenue
@@ -37,7 +41,7 @@ const B41_CLARKSON_AVE_STOP = 'MTA_303242'; // FLATBUSH AV/CLARKSON AV
 const B49_ROGERS_LENOX_STOP = 'MTA_303944'; // ROGERS AV/LENOX RD
 
 // Helper function to fetch subway data from a specific feed
-async function fetchSubwayFeed(feedUrl, targetRoute) {
+async function fetchSubwayFeed(feedUrl, targetRoute, stopId, stopIdPattern) {
   const arrivals = [];
   
   try {
@@ -48,17 +52,26 @@ async function fetchSubwayFeed(feedUrl, targetRoute) {
 
     const feed = gtfs.transit_realtime.FeedMessage.decode(response.data);
 
-    // Filter for target route at Church Ave going Manhattan-bound
+    // Filter for target route at specified stop going Manhattan-bound
     for (const entity of feed.entity) {
       if (entity.tripUpdate && entity.tripUpdate.stopTimeUpdate) {
         const routeId = entity.tripUpdate.trip.routeId;
         
         if (routeId === targetRoute) {
           for (const stopUpdate of entity.tripUpdate.stopTimeUpdate) {
-            // Check if this stop matches Church Ave (Manhattan-bound)
-            // Stop ID format might vary, so we check for partial match
-            const stopId = stopUpdate.stopId || '';
-            if (stopId === CHURCH_AVE_STOP_ID || (stopId.includes('D28') && stopId.includes('N'))) {
+            // Check if this stop matches the target stop (Manhattan-bound)
+            const stopIdStr = stopUpdate.stopId || '';
+            let matchesStop = false;
+            
+            if (stopIdPattern) {
+              // Use pattern matching (e.g., for D28N, check for D28 and N)
+              matchesStop = stopIdPattern.every(pattern => stopIdStr.includes(pattern));
+            } else {
+              // Exact match or includes stop ID
+              matchesStop = stopIdStr === stopId || (stopIdStr.includes(stopId) && stopIdStr.includes('N'));
+            }
+            
+            if (matchesStop) {
               const arrivalTime = stopUpdate.arrival?.time || stopUpdate.departure?.time;
               if (arrivalTime) {
                 const currentTime = Math.floor(Date.now() / 1000);
@@ -87,22 +100,31 @@ async function fetchSubwayFeed(feedUrl, targetRoute) {
   }
 }
 
-// Helper function to fetch subway data for both B and Q trains
+// Helper function to fetch subway data for B, Q, 2, and 5 trains
 async function fetchSubwayData() {
-  const allArrivals = [];
+  const churchAveArrivals = [];
+  const winthropArrivals = [];
   
-  // Fetch B train data from BDFM feed
-  const bArrivals = await fetchSubwayFeed(B_TRAIN_FEED_URL, 'B');
-  allArrivals.push(...bArrivals);
+  // Fetch B train data from BDFM feed at Church Ave
+  const bArrivals = await fetchSubwayFeed(B_TRAIN_FEED_URL, 'B', CHURCH_AVE_STOP_ID, ['D28', 'N']);
+  churchAveArrivals.push(...bArrivals);
   
-  // Fetch Q train data from NQRW feed
-  const qArrivals = await fetchSubwayFeed(Q_TRAIN_FEED_URL, 'Q');
-  allArrivals.push(...qArrivals);
+  // Fetch Q train data from NQRW feed at Church Ave
+  const qArrivals = await fetchSubwayFeed(Q_TRAIN_FEED_URL, 'Q', CHURCH_AVE_STOP_ID, ['D28', 'N']);
+  churchAveArrivals.push(...qArrivals);
 
-  // Sort by arrival time and return next 2-3
-  return allArrivals
-    .sort((a, b) => a.minutes - b.minutes)
-    .slice(0, 3);
+  // Fetch 2 train data from IRT feed at Winthrop
+  const train2Arrivals = await fetchSubwayFeed(IRT_FEED_URL, '2', WINTHROP_STOP_ID, ['235', 'N']);
+  winthropArrivals.push(...train2Arrivals);
+  
+  // Fetch 5 train data from IRT feed at Winthrop
+  const train5Arrivals = await fetchSubwayFeed(IRT_FEED_URL, '5', WINTHROP_STOP_ID, ['235', 'N']);
+  winthropArrivals.push(...train5Arrivals);
+
+  return {
+    churchAve: churchAveArrivals.sort((a, b) => a.minutes - b.minutes).slice(0, 3),
+    winthrop: winthropArrivals.sort((a, b) => a.minutes - b.minutes).slice(0, 3)
+  };
 }
 
 // Helper function to fetch bus data
@@ -254,7 +276,8 @@ app.get('/api/arrivals', async (req, res) => {
 
     res.json({
       subway: {
-        churchAve: subwayArrivals
+        churchAve: subwayArrivals.churchAve,
+        winthrop: subwayArrivals.winthrop
       },
       buses: {
         b41: b41Combined,

@@ -2,11 +2,15 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const gtfs = require('gtfs-realtime-bindings');
+const path = require('path');
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+// Serve static files from public directory (fallback for Vercel)
+app.use(express.static(path.join(__dirname, '../public')));
 
 // MTA API Configuration
 // Note: Subway feeds don't require an API key, but Bus Time API does
@@ -218,50 +222,87 @@ async function fetchBusData(routeId, stopId, direction) {
 }
 
 // API endpoint to get all arrival data
+// Returns partial data even if some sources fail - graceful degradation
 app.get('/api/arrivals', async (req, res) => {
+  const errors = [];
+  const result = {
+    subway: { churchAve: [] },
+    buses: { b41: [], b49: [] },
+    timestamp: new Date().toISOString(),
+    errors: []
+  };
+
   try {
-    // Fetch subway data
-    const subwayArrivals = await fetchSubwayData();
+    // Fetch subway data (non-blocking - if it fails, continue with buses)
+    try {
+      result.subway.churchAve = await fetchSubwayData();
+    } catch (error) {
+      console.error('Error fetching subway data:', error.message);
+      errors.push('Subway data temporarily unavailable');
+      result.errors.push('subway');
+    }
 
-    // Fetch bus data
-    // For B41 to Downtown Brooklyn Cadman Plaza at Caton Ave (Local)
-    const b41CatonArrivals = await fetchBusData('B41', B41_CATON_AVE_STOP, 'Cadman Plaza');
-    // Add location info to Caton Ave arrivals (these are local)
-    b41CatonArrivals.forEach(arrival => {
-      arrival.location = 'Caton Ave';
-      arrival.isLimited = false; // Caton Ave only has local
-    });
-    
-    // For B41 at Clarkson Ave - fetch all buses (both Local and Limited)
-    const b41ClarksonAllArrivals = await fetchBusData('B41', B41_CLARKSON_AVE_STOP, 'Cadman Plaza');
-    // Add location info to all Clarkson Ave arrivals (both local and limited)
-    const b41ClarksonArrivals = b41ClarksonAllArrivals.map(arrival => ({
-      ...arrival,
-      location: 'Clarkson Ave'
-    }));
-    
-    // Combine B41 arrivals: Local from Caton, and both Local and Limited from Clarkson
-    // Sort by arrival time and limit to show next arrivals
-    const b41Combined = [...b41CatonArrivals, ...b41ClarksonArrivals]
-      .sort((a, b) => a.minutes - b.minutes)
-      .slice(0, 8); // Show up to 8 total (mix of local and limited from both stops)
-    
-    // For B49 to Bed Stuy Fulton St at Rogers and Lenox Road
-    const b49Arrivals = await fetchBusData('B49', B49_ROGERS_LENOX_STOP, 'Fulton');
+    // Fetch bus data (non-blocking - each route independent)
+    try {
+      // For B41 to Downtown Brooklyn Cadman Plaza at Caton Ave (Local)
+      const b41CatonArrivals = await fetchBusData('B41', B41_CATON_AVE_STOP, 'Cadman Plaza');
+      b41CatonArrivals.forEach(arrival => {
+        arrival.location = 'Caton Ave';
+        arrival.isLimited = false;
+      });
+      
+      // For B41 at Clarkson Ave - fetch all buses (both Local and Limited)
+      const b41ClarksonAllArrivals = await fetchBusData('B41', B41_CLARKSON_AVE_STOP, 'Cadman Plaza');
+      const b41ClarksonArrivals = b41ClarksonAllArrivals.map(arrival => ({
+        ...arrival,
+        location: 'Clarkson Ave'
+      }));
+      
+      // Combine B41 arrivals
+      result.buses.b41 = [...b41CatonArrivals, ...b41ClarksonArrivals]
+        .sort((a, b) => a.minutes - b.minutes)
+        .slice(0, 8);
+    } catch (error) {
+      console.error('Error fetching B41 data:', error.message);
+      errors.push('B41 bus data temporarily unavailable');
+      result.errors.push('b41');
+    }
 
-    res.json({
-      subway: {
-        churchAve: subwayArrivals
-      },
-      buses: {
-        b41: b41Combined,
-        b49: b49Arrivals
-      },
+    try {
+      // For B49 to Bed Stuy Fulton St at Rogers and Lenox Road
+      result.buses.b49 = await fetchBusData('B49', B49_ROGERS_LENOX_STOP, 'Fulton');
+    } catch (error) {
+      console.error('Error fetching B49 data:', error.message);
+      errors.push('B49 bus data temporarily unavailable');
+      result.errors.push('b49');
+    }
+
+    // Return partial results even if some sources failed
+    // Only return 500 if ALL sources failed
+    const hasAnyData = result.subway.churchAve.length > 0 || 
+                       result.buses.b41.length > 0 || 
+                       result.buses.b49.length > 0;
+
+    if (errors.length > 0) {
+      result.warnings = errors;
+    }
+
+    if (hasAnyData || errors.length === 0) {
+      res.json(result);
+    } else {
+      res.status(503).json({
+        error: 'All data sources are currently unavailable',
+        message: 'Please try again in a moment',
+        timestamp: result.timestamp
+      });
+    }
+  } catch (error) {
+    console.error('Unexpected error in /api/arrivals:', error);
+    res.status(500).json({
+      error: 'An unexpected error occurred',
+      message: error.message,
       timestamp: new Date().toISOString()
     });
-  } catch (error) {
-    console.error('Error in /api/arrivals:', error);
-    res.status(500).json({ error: 'Failed to fetch arrival data' });
   }
 });
 
@@ -269,11 +310,17 @@ app.get('/api/arrivals', async (req, res) => {
 app.get('/api/search-stops', async (req, res) => {
   const query = req.query.q;
   if (!query) {
-    return res.status(400).json({ error: 'Query parameter required' });
+    return res.status(400).json({ 
+      error: 'Query parameter required',
+      message: 'Please provide a search query using ?q=your_search_term'
+    });
   }
 
   if (!BUS_TIME_API_KEY) {
-    return res.status(400).json({ error: 'BUS_TIME_API_KEY not configured' });
+    return res.status(503).json({ 
+      error: 'BUS_TIME_API_KEY not configured',
+      message: 'Bus stop search requires API key configuration'
+    });
   }
 
   try {
@@ -285,14 +332,57 @@ app.get('/api/search-stops', async (req, res) => {
         lon: -73.95,
         radius: 5000,
         q: query
-      }
+      },
+      timeout: 10000 // 10 second timeout
     });
 
     res.json(response.data);
   } catch (error) {
     console.error('Error searching stops:', error.message);
-    res.status(500).json({ error: 'Failed to search stops' });
+    if (error.code === 'ECONNABORTED') {
+      res.status(504).json({ 
+        error: 'Request timeout',
+        message: 'The search took too long. Please try again.'
+      });
+    } else if (error.response) {
+      res.status(error.response.status).json({ 
+        error: 'Search failed',
+        message: error.response.data?.message || 'Unable to search stops at this time'
+      });
+    } else {
+      res.status(500).json({ 
+        error: 'Failed to search stops',
+        message: 'An unexpected error occurred'
+      });
+    }
   }
+});
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    services: {
+      subway: 'available',
+      bus: BUS_TIME_API_KEY ? 'available' : 'api_key_missing'
+    }
+  });
+});
+
+// Serve index.html for root and all non-API routes (SPA fallback)
+app.get('*', (req, res) => {
+  // Don't serve HTML for API routes
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ 
+      error: 'Not Found',
+      message: `API endpoint ${req.path} does not exist`,
+      availableEndpoints: ['/api/arrivals', '/api/search-stops', '/api/health']
+    });
+  }
+  
+  // Serve index.html for all other routes (SPA routing)
+  res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
 // Export the Express app as a serverless function for Vercel
