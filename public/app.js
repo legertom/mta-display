@@ -15,9 +15,24 @@ function formatMinutes(minutes) {
 }
 
 // Format occupancy status for display
-function formatOccupancyStatus(occupancyStatus, occupancyPercentage) {
+function formatOccupancyStatus(occupancyStatus, occupancyPercentage, passengerCount, passengerCapacity) {
     // Check if we have any occupancy data at all
-    if (occupancyStatus === undefined && occupancyStatus !== 0 && occupancyPercentage === undefined) {
+    // Note: For subways, occupancyStatus may be 0 (which means EMPTY in GTFS-RT spec)
+    // but MTA doesn't actually populate this data - it's always 0, so we treat 0/0 as "no data"
+    const hasOccupancyStatus = occupancyStatus !== undefined && occupancyStatus !== null;
+    const hasOccupancyPercentage = occupancyPercentage !== undefined && occupancyPercentage !== null;
+    const hasPassengerCount = passengerCount !== undefined && passengerCount !== null;
+    
+    if (!hasOccupancyStatus && !hasOccupancyPercentage && !hasPassengerCount) {
+        return '';
+    }
+    
+    // For subways: if occupancyStatus is 0 and occupancyPercentage is 0 or undefined,
+    // this likely means MTA isn't providing occupancy data (not that the train is empty)
+    // So we don't display it (unless we have passenger count, which is real data)
+    if (hasOccupancyStatus && occupancyStatus === 0 && 
+        (!hasOccupancyPercentage || occupancyPercentage === 0) && 
+        !hasPassengerCount) {
         return '';
     }
     
@@ -32,7 +47,37 @@ function formatOccupancyStatus(occupancyStatus, occupancyPercentage) {
         6: { text: 'Not Accepting', class: 'occupancy-not-accepting', emoji: '⚫' }
     };
     
-    const status = statusMap[occupancyStatus] || { text: 'Unknown', class: 'occupancy-unknown', emoji: '⚪' };
+    // Also handle SIRI occupancy string values
+    const siriStatusMap = {
+        'empty': { text: 'Empty', class: 'occupancy-empty', emoji: '🟢' },
+        'seatsAvailable': { text: 'Many Seats', class: 'occupancy-many', emoji: '🟢' },
+        'standingAvailable': { text: 'Standing Room', class: 'occupancy-standing', emoji: '🟠' },
+        'full': { text: 'Full', class: 'occupancy-full', emoji: '🔴' }
+    };
+    
+    let status;
+    if (typeof occupancyStatus === 'string') {
+        status = siriStatusMap[occupancyStatus.toLowerCase()] || { text: occupancyStatus, class: 'occupancy-unknown', emoji: '⚪' };
+    } else {
+        status = statusMap[occupancyStatus] || { text: 'Unknown', class: 'occupancy-unknown', emoji: '⚪' };
+    }
+    
+    // Prefer passenger count if available (more specific)
+    if (passengerCount !== undefined && passengerCount !== null) {
+        let display = `${passengerCount} ${passengerCount === 1 ? 'rider' : 'riders'}`;
+        
+        // Add percentage if we have capacity data
+        if (occupancyPercentage !== undefined && occupancyPercentage !== null) {
+            display += ` (${occupancyPercentage}% full)`;
+        } else if (passengerCapacity !== undefined && passengerCapacity !== null && passengerCapacity > 0) {
+            // Calculate percentage if we have count and capacity
+            const calculatedPercentage = Math.round((passengerCount / passengerCapacity) * 100);
+            display += ` (${calculatedPercentage}% full)`;
+        }
+        
+        return `<span class="occupancy-badge ${status.class}">${display}</span>`;
+    }
+    
     let display = status.emoji + ' ' + status.text;
     
     if (occupancyPercentage !== undefined && occupancyPercentage !== null) {
@@ -56,13 +101,15 @@ function createArrivalItem(arrival, isSubway = false) {
     if (isSubway) {
       // For subways, check occupancyStatus (can be 0, so check !== undefined explicitly)
       if (arrival.occupancyStatus !== undefined && arrival.occupancyStatus !== null) {
-        occupancyInfo = formatOccupancyStatus(arrival.occupancyStatus, arrival.occupancyPercentage);
+        occupancyInfo = formatOccupancyStatus(arrival.occupancyStatus, arrival.occupancyPercentage, arrival.passengerCount, arrival.passengerCapacity);
       }
     } else {
-      // For buses, check for occupancyStatus first, then loadFactor
-      // occupancyStatus can be 0 (Empty), so we need to check !== undefined && !== null
-      if (arrival.occupancyStatus !== undefined && arrival.occupancyStatus !== null) {
-        occupancyInfo = formatOccupancyStatus(arrival.occupancyStatus, arrival.occupancyPercentage);
+      // For buses, prioritize passenger count, then occupancyStatus, then loadFactor
+      // passengerCount can be 0, so check !== undefined && !== null
+      if (arrival.passengerCount !== undefined && arrival.passengerCount !== null) {
+        occupancyInfo = formatOccupancyStatus(arrival.occupancyStatus, arrival.occupancyPercentage, arrival.passengerCount, arrival.passengerCapacity);
+      } else if (arrival.occupancyStatus !== undefined && arrival.occupancyStatus !== null) {
+        occupancyInfo = formatOccupancyStatus(arrival.occupancyStatus, arrival.occupancyPercentage, null, arrival.passengerCapacity);
       } else if (arrival.loadFactor !== undefined && arrival.loadFactor !== null) {
         // Convert loadFactor (0-1) to occupancy status
         // loadFactor: 0 = empty, 0.5 = half full, 1 = full
@@ -77,7 +124,7 @@ function createArrivalItem(arrival, isSubway = false) {
           occupancyStatus = 5; // Full
         }
         const percentage = Math.round(arrival.loadFactor * 100);
-        occupancyInfo = formatOccupancyStatus(occupancyStatus, percentage);
+        occupancyInfo = formatOccupancyStatus(occupancyStatus, percentage, null, arrival.passengerCapacity);
       }
     }
     

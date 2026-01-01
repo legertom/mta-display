@@ -55,10 +55,15 @@ async function fetchSubwayFeed(feedUrl, targetRoute, stopId, stopIdPattern) {
     const feed = gtfs.transit_realtime.FeedMessage.decode(response.data);
 
     // First pass: collect vehicle positions with occupancy data
+    // Note: MTA GTFS-RT feeds include occupancyStatus field, but it's always 0 (empty)
+    // This appears to be because MTA doesn't populate occupancy data for subways in GTFS-RT
+    // (unlike buses which have APC sensors and provide occupancy via Bus Time API)
     for (const entity of feed.entity) {
       if (entity.vehicle && entity.vehicle.trip && entity.vehicle.trip.routeId === targetRoute) {
         const tripId = entity.vehicle.trip.tripId;
-        if (tripId && entity.vehicle.occupancyStatus !== undefined) {
+        // Store occupancy data even if it's 0, so we know the field exists
+        // occupancyStatus: 0 means EMPTY in GTFS-RT spec
+        if (tripId && 'occupancyStatus' in entity.vehicle) {
           vehiclePositions.set(tripId, {
             occupancyStatus: entity.vehicle.occupancyStatus,
             occupancyPercentage: entity.vehicle.occupancyPercentage
@@ -182,41 +187,192 @@ async function fetchSubwayData() {
   };
 }
 
-// Helper function to fetch bus vehicle positions for occupancy data
+// Helper function to fetch bus vehicle positions for occupancy and passenger count data
 async function fetchBusVehiclePositions(routeId) {
   if (!BUS_TIME_API_KEY) {
     return new Map();
   }
   
   try {
-    // Fetch vehicle positions for the route
-    const url = `${BUS_TIME_BASE_URL}/vehicles-for-route/${routeId}.json`;
+    // Use SIRI vehicle monitoring API which has more detailed data including passenger counts
+    const url = `https://bustime.mta.info/api/siri/vehicle-monitoring.json`;
     const response = await axios.get(url, {
       params: {
         key: BUS_TIME_API_KEY,
-        includePolylines: false
+        VehicleMonitoringDetailLevel: 'calls',
+        LineRef: `MTA NYCT_${routeId}`
       }
     });
     
     const vehicleMap = new Map();
-    const vehicles = response.data?.data?.list || [];
+    const vehicleActivities = response.data?.Siri?.ServiceDelivery?.VehicleMonitoringDelivery?.[0]?.VehicleActivity || [];
     
-    for (const vehicle of vehicles) {
-      const tripId = vehicle.tripId;
-      if (tripId) {
-        vehicleMap.set(tripId, {
-          loadFactor: vehicle.loadFactor,
-          occupancyStatus: vehicle.occupancyStatus,
-          occupancyPercentage: vehicle.occupancyPercentage
-        });
+    for (const activity of vehicleActivities) {
+      const journey = activity.MonitoredVehicleJourney;
+      if (!journey) continue;
+      
+      // Get trip ID from FramedVehicleJourneyRef
+      const tripId = journey.FramedVehicleJourneyRef?.DatedVehicleJourneyRef;
+      if (!tripId) continue;
+      
+      // Extract occupancy and passenger count data
+      const vehicleData = {
+        occupancyStatus: journey.Occupancy,
+        loadFactor: journey.LoadFactor,
+        occupancyPercentage: journey.OccupancyPercentage,
+        passengerCount: journey.PassengerCount || journey.Extensions?.Occupancy?.PassengerCount
+      };
+      
+      // Check Extensions for additional data
+      if (journey.Extensions) {
+        if (journey.Extensions.Occupancy) {
+          vehicleData.passengerCount = journey.Extensions.Occupancy.PassengerCount || vehicleData.passengerCount;
+          vehicleData.occupancyPercentage = journey.Extensions.Occupancy.OccupancyPercentage || vehicleData.occupancyPercentage;
+        }
       }
+      
+      vehicleMap.set(tripId, vehicleData);
     }
     
     return vehicleMap;
   } catch (error) {
-    // Vehicle positions endpoint might not be available or might fail
-    // Return empty map - occupancy data is optional
-    return new Map();
+    // SIRI endpoint might not be available or might fail
+    // Try fallback to regular vehicles endpoint
+    try {
+      const url = `${BUS_TIME_BASE_URL}/vehicles-for-route/${routeId}.json`;
+      const response = await axios.get(url, {
+        params: {
+          key: BUS_TIME_API_KEY,
+          includePolylines: false
+        }
+      });
+      
+      const vehicleMap = new Map();
+      const vehicles = response.data?.data?.list || [];
+      
+      for (const vehicle of vehicles) {
+        const tripId = vehicle.tripId;
+        if (tripId) {
+          vehicleMap.set(tripId, {
+            loadFactor: vehicle.loadFactor,
+            occupancyStatus: vehicle.occupancyStatus,
+            occupancyPercentage: vehicle.occupancyPercentage,
+            passengerCount: vehicle.passengerCount
+          });
+        }
+      }
+      
+      return vehicleMap;
+    } catch (fallbackError) {
+      // Both endpoints failed - return empty map
+      console.warn(`Could not fetch vehicle positions for ${routeId}:`, fallbackError.message);
+      return new Map();
+    }
+  }
+}
+
+// Helper function to fetch bus data using SIRI stop monitoring for real-time predictions
+async function fetchBusDataSIRI(routeId, stopId) {
+  if (!BUS_TIME_API_KEY) {
+    return { arrivals: [], vehicleMap: new Map() };
+  }
+  
+  try {
+    // Use SIRI stop monitoring for real-time predicted arrival times
+    const url = `https://bustime.mta.info/api/siri/stop-monitoring.json`;
+    const response = await axios.get(url, {
+      params: {
+        key: BUS_TIME_API_KEY,
+        MonitoringRef: stopId,
+        LineRef: `MTA NYCT_${routeId}`
+      }
+    });
+    
+    const arrivals = [];
+    const vehicleMap = new Map();
+    
+    const stopMonitoringDeliveries = response.data?.Siri?.ServiceDelivery?.StopMonitoringDelivery || [];
+    
+    for (const delivery of stopMonitoringDeliveries) {
+      const monitoredStopVisits = delivery.MonitoredStopVisit || [];
+      
+      for (const visit of monitoredStopVisits) {
+        const call = visit.MonitoredVehicleJourney?.MonitoredCall;
+        const journey = visit.MonitoredVehicleJourney;
+        
+        if (!call || !journey) continue;
+        
+        // Get predicted or expected arrival time
+        const arrivalTime = call.ExpectedArrivalTime || call.AimedArrivalTime;
+        if (!arrivalTime) continue;
+        
+        // Parse ISO 8601 time string
+        const arrivalTimestamp = new Date(arrivalTime).getTime();
+        const minutesUntil = Math.round((arrivalTimestamp - Date.now()) / 60000);
+        
+        if (minutesUntil >= -2 && minutesUntil < 120) {
+          const tripId = journey.FramedVehicleJourneyRef?.DatedVehicleJourneyRef;
+          const tripHeadsign = journey.DestinationName || '';
+          const isLimited = tripHeadsign.toUpperCase().includes('LTD') || 
+                           tripHeadsign.toUpperCase().includes('LIMITED');
+          
+          // Get passenger count and capacity from Extensions.Capacities (this is where it is in SIRI)
+          const extensions = call.Extensions || {};
+          const capacities = extensions.Capacities || {};
+          const passengerCount = capacities.EstimatedPassengerCount;
+          const passengerCapacity = capacities.EstimatedPassengerCapacity;
+          
+          // Calculate percentage full if we have both count and capacity
+          let occupancyPercentage = null;
+          if (passengerCount !== undefined && passengerCount !== null && 
+              passengerCapacity !== undefined && passengerCapacity !== null && 
+              passengerCapacity > 0) {
+            occupancyPercentage = Math.round((passengerCount / passengerCapacity) * 100);
+          }
+          
+          const arrival = {
+            route: journey.PublishedLineName || routeId,
+            minutes: Math.max(0, minutesUntil),
+            isLimited: isLimited,
+            headsign: tripHeadsign,
+            arrivalTime: new Date(arrivalTimestamp),
+            tripId: tripId
+          };
+          
+          // Add occupancy and passenger data
+          if (journey.Occupancy) {
+            arrival.occupancyStatus = journey.Occupancy;
+          }
+          if (passengerCount !== undefined && passengerCount !== null) {
+            arrival.passengerCount = passengerCount;
+          }
+          if (passengerCapacity !== undefined && passengerCapacity !== null) {
+            arrival.passengerCapacity = passengerCapacity;
+          }
+          if (occupancyPercentage !== null) {
+            arrival.occupancyPercentage = occupancyPercentage;
+          }
+          if (capacities.EstimatedPassengerLoadFactor) {
+            arrival.loadFactor = capacities.EstimatedPassengerLoadFactor;
+          }
+          
+          arrivals.push(arrival);
+          
+          // Also store in vehicleMap for reference
+          if (tripId) {
+            vehicleMap.set(tripId, {
+              occupancyStatus: journey.Occupancy,
+              passengerCount: passengerCount
+            });
+          }
+        }
+      }
+    }
+    
+    return { arrivals, vehicleMap };
+  } catch (error) {
+    console.warn(`SIRI stop monitoring failed for ${routeId} at ${stopId}:`, error.message);
+    return { arrivals: [], vehicleMap: new Map() };
   }
 }
 
@@ -228,6 +384,35 @@ async function fetchBusData(routeId, stopId, direction) {
   }
   
   try {
+    // Try SIRI stop monitoring first for real-time predictions
+    const siriData = await fetchBusDataSIRI(routeId, stopId);
+    
+    // If SIRI returns data, use it (it has real-time predictions)
+    if (siriData.arrivals.length > 0) {
+      // Add occupancy/passenger data from vehicle positions
+      for (const arrival of siriData.arrivals) {
+        if (arrival.tripId && siriData.vehicleMap.has(arrival.tripId)) {
+          const vehicleData = siriData.vehicleMap.get(arrival.tripId);
+          arrival.occupancyStatus = vehicleData.occupancyStatus;
+          arrival.passengerCount = vehicleData.passengerCount;
+        }
+      }
+      
+      // Filter by direction if needed (for B49)
+      if (direction && direction.toLowerCase().includes('fulton')) {
+        return siriData.arrivals.filter(arrival => {
+          const headsignLower = arrival.headsign.toLowerCase();
+          return headsignLower.includes('fulton') ||
+                 headsignLower.includes('bed stuy') ||
+                 headsignLower.includes('bedford-stuyvesant') ||
+                 headsignLower.includes('bed-stuy');
+        });
+      }
+      
+      return siriData.arrivals;
+    }
+    
+    // Fallback to regular arrivals endpoint if SIRI doesn't return data
     // Fetch vehicle positions for occupancy data (if available)
     const vehiclePositions = await fetchBusVehiclePositions(`MTA NYCT_${routeId}`);
     
@@ -320,7 +505,7 @@ async function fetchBusData(routeId, stopId, direction) {
             arrivalTime: new Date(predictedArrivalTime)
           };
           
-          // Get occupancy data from vehicle positions if available
+          // Get occupancy data and passenger count from vehicle positions if available
           const tripId = prediction.tripId;
           if (tripId && vehiclePositions.has(tripId)) {
             const vehicleData = vehiclePositions.get(tripId);
@@ -332,6 +517,10 @@ async function fetchBusData(routeId, stopId, direction) {
             }
             if (vehicleData.occupancyPercentage !== undefined) {
               arrival.occupancyPercentage = vehicleData.occupancyPercentage;
+            }
+            // Add passenger/rider count if available
+            if (vehicleData.passengerCount !== undefined && vehicleData.passengerCount !== null) {
+              arrival.passengerCount = vehicleData.passengerCount;
             }
           }
           
@@ -371,32 +560,50 @@ app.get('/api/arrivals', async (req, res) => {
     const subwayArrivals = await fetchSubwayData();
 
     // Fetch bus data
-    // For B41 at Caton Ave - don't filter by direction, get all B41 buses
-    const b41CatonArrivals = await fetchBusData('B41', B41_CATON_AVE_STOP, null);
-    // Add location info to Caton Ave arrivals and ensure Limited status is preserved
-    b41CatonArrivals.forEach(arrival => {
-      arrival.location = 'Caton Ave';
-      // Caton Ave typically only has local, but preserve the Limited status if detected
-      if (!arrival.isLimited) {
-        arrival.isLimited = false; // Explicitly mark as Local
-      }
-    });
-    
-    // For B41 at Clarkson Ave - fetch all buses (both Local and Limited)
-    const b41ClarksonAllArrivals = await fetchBusData('B41', B41_CLARKSON_AVE_STOP, null);
-    // Add location info to all Clarkson Ave arrivals (both local and limited)
-    // Preserve the Limited status from the API
-    const b41ClarksonArrivals = b41ClarksonAllArrivals.map(arrival => ({
-      ...arrival,
-      location: 'Clarkson Ave'
-      // isLimited is already set by fetchBusData based on tripHeadsign/routeShortName
-    }));
-    
-    // Combine B41 arrivals: All from Caton Ave, and all from Clarkson Ave (both Local and Limited)
-    // Sort by arrival time and show all available buses
-    const b41Combined = [...b41CatonArrivals, ...b41ClarksonArrivals]
+    // For B41 at Caton Ave - get Local buses only (Caton Ave only serves Local)
+    const b41CatonAllArrivals = await fetchBusData('B41', B41_CATON_AVE_STOP, null);
+    const b41CatonLocalArrivals = b41CatonAllArrivals
+      .filter(arrival => !arrival.isLimited) // Only Local buses (Caton Ave doesn't have Limited)
+      .map(arrival => ({
+        ...arrival,
+        location: 'Caton Ave',
+        isLimited: false // Force Local for Caton Ave
+      }))
       .sort((a, b) => a.minutes - b.minutes)
-      .slice(0, 10); // Show up to 10 total (mix of local and limited from both stops)
+      .slice(0, 2); // Next 2 Local buses
+    
+    // For B41 at Clarkson Ave - get Limited buses only (Clarkson Ave only shows Limited)
+    const b41ClarksonAllArrivals = await fetchBusData('B41', B41_CLARKSON_AVE_STOP, null);
+    const b41ClarksonLimitedArrivals = b41ClarksonAllArrivals
+      .filter(arrival => arrival.isLimited === true) // Only Limited buses (strict check)
+      .map(arrival => ({
+        ...arrival,
+        location: 'Clarkson Ave',
+        isLimited: true // Force Limited for Clarkson Ave
+      }))
+      .sort((a, b) => a.minutes - b.minutes)
+      .slice(0, 2); // Next 2 Limited buses
+    
+    // Debug logging
+    console.log(`B41 Caton Ave: ${b41CatonAllArrivals.length} total, ${b41CatonLocalArrivals.length} Local`);
+    console.log(`B41 Clarkson Ave: ${b41ClarksonAllArrivals.length} total, ${b41ClarksonLimitedArrivals.length} Limited`);
+    
+    // Combine B41 arrivals: 2 Local from Caton Ave + 2 Limited from Clarkson Ave
+    // Final safety filter: ensure Caton Ave only has Local, Clarkson Ave only has Limited
+    const b41Combined = [...b41CatonLocalArrivals, ...b41ClarksonLimitedArrivals]
+      .filter(arrival => {
+        // Caton Ave must be Local
+        if (arrival.location === 'Caton Ave' && arrival.isLimited) {
+          return false;
+        }
+        // Clarkson Ave must be Limited
+        if (arrival.location === 'Clarkson Ave' && !arrival.isLimited) {
+          return false;
+        }
+        return true;
+      })
+      .sort((a, b) => a.minutes - b.minutes)
+      .slice(0, 4); // Maximum 4 buses total
     
     // For B49 to Bed Stuy Fulton St at Rogers and Lenox Road
     const b49Arrivals = await fetchBusData('B49', B49_ROGERS_LENOX_STOP, 'Fulton');

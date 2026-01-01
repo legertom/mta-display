@@ -160,7 +160,7 @@ async function fetchWinthropData() {
 // Helper function to fetch bus vehicle positions for occupancy data from GTFS-Realtime
 async function fetchBusVehiclePositionsFromGTFS(routeId) {
   if (!BUS_TIME_API_KEY) {
-    return new Map();
+    return { byTripId: new Map(), byVehicleId: new Map() };
   }
   
   try {
@@ -173,7 +173,8 @@ async function fetchBusVehiclePositionsFromGTFS(routeId) {
     });
 
     const feed = gtfs.transit_realtime.FeedMessage.decode(response.data);
-    const vehicleMap = new Map();
+    const vehicleMapByTripId = new Map();
+    const vehicleMapByVehicleId = new Map();
     
     // Extract route ID variants to match
     const routeIdVariants = [
@@ -187,6 +188,7 @@ async function fetchBusVehiclePositionsFromGTFS(routeId) {
       if (entity.vehicle && entity.vehicle.trip) {
         const vehicleRouteId = entity.vehicle.trip.routeId || '';
         const tripId = entity.vehicle.trip.tripId;
+        const vehicleId = entity.vehicle.vehicle?.id;
         
         // Check if this vehicle matches our route
         const matchesRoute = routeIdVariants.some(variant => 
@@ -194,32 +196,40 @@ async function fetchBusVehiclePositionsFromGTFS(routeId) {
           vehicleRouteId === variant
         );
         
-        if (matchesRoute && tripId && entity.vehicle.occupancyStatus !== undefined) {
-          vehicleMap.set(tripId, {
+        if (matchesRoute && entity.vehicle.occupancyStatus !== undefined) {
+          const occupancyData = {
             occupancyStatus: entity.vehicle.occupancyStatus,
             occupancyPercentage: entity.vehicle.occupancyPercentage
-          });
+          };
+          
+          // Store by both tripId and vehicleId for flexible matching
+          if (tripId) {
+            vehicleMapByTripId.set(tripId, occupancyData);
+          }
+          if (vehicleId) {
+            vehicleMapByVehicleId.set(vehicleId, occupancyData);
+          }
         }
       }
     }
     
-    return vehicleMap;
+    return { byTripId: vehicleMapByTripId, byVehicleId: vehicleMapByVehicleId };
   } catch (error) {
     console.warn(`Warning: Could not fetch GTFS-Realtime vehicle positions for ${routeId}:`, error.message);
-    return new Map();
+    return { byTripId: new Map(), byVehicleId: new Map() };
   }
 }
 
 // Helper function to fetch bus vehicle positions for occupancy data from REST API (fallback)
 async function fetchBusVehiclePositions(routeId) {
   if (!BUS_TIME_API_KEY) {
-    return new Map();
+    return { byTripId: new Map(), byVehicleId: new Map() };
   }
   
   // First try GTFS-Realtime (more reliable for occupancy data)
-  const gtfsMap = await fetchBusVehiclePositionsFromGTFS(routeId);
-  if (gtfsMap.size > 0) {
-    return gtfsMap;
+  const gtfsMaps = await fetchBusVehiclePositionsFromGTFS(routeId);
+  if (gtfsMaps.byTripId.size > 0 || gtfsMaps.byVehicleId.size > 0) {
+    return gtfsMaps;
   }
   
   // Fallback to REST API
@@ -233,26 +243,33 @@ async function fetchBusVehiclePositions(routeId) {
       }
     });
     
-    const vehicleMap = new Map();
+    const vehicleMapByTripId = new Map();
+    const vehicleMapByVehicleId = new Map();
     const vehicles = response.data?.data?.list || [];
     
     for (const vehicle of vehicles) {
       const tripId = vehicle.tripId;
+      const vehicleId = vehicle.vehicleId;
+      const occupancyData = {
+        loadFactor: vehicle.loadFactor,
+        occupancyStatus: vehicle.occupancyStatus,
+        occupancyPercentage: vehicle.occupancyPercentage
+      };
+      
       if (tripId) {
-        vehicleMap.set(tripId, {
-          loadFactor: vehicle.loadFactor,
-          occupancyStatus: vehicle.occupancyStatus,
-          occupancyPercentage: vehicle.occupancyPercentage
-        });
+        vehicleMapByTripId.set(tripId, occupancyData);
+      }
+      if (vehicleId) {
+        vehicleMapByVehicleId.set(vehicleId, occupancyData);
       }
     }
     
-    return vehicleMap;
+    return { byTripId: vehicleMapByTripId, byVehicleId: vehicleMapByVehicleId };
   } catch (error) {
     // Vehicle positions endpoint might not be available or might fail
-    // Return empty map - occupancy data is optional
+    // Return empty maps - occupancy data is optional
     console.warn(`Warning: Could not fetch REST API vehicle positions for ${routeId}:`, error.message);
-    return new Map();
+    return { byTripId: new Map(), byVehicleId: new Map() };
   }
 }
 
@@ -390,9 +407,29 @@ async function fetchBusData(routeId, stopId, direction) {
             }
           }
           
-          // Try to match with vehicle positions by tripId (from vehicles-for-route endpoint)
-          if (tripId && vehiclePositions.has(tripId)) {
-            const vehicleData = vehiclePositions.get(tripId);
+          // Try to match with vehicle positions
+          // Handle both new format (object with byTripId/byVehicleId) and old format (Map)
+          let vehicleData = null;
+          
+          if (vehiclePositions && typeof vehiclePositions === 'object' && !(vehiclePositions instanceof Map)) {
+            // New format: object with byTripId and byVehicleId maps
+            // Try vehicleId first (more reliable for matching)
+            if (vehicleId && vehiclePositions.byVehicleId && vehiclePositions.byVehicleId.has(vehicleId)) {
+              vehicleData = vehiclePositions.byVehicleId.get(vehicleId);
+            }
+            // Fallback to tripId
+            if (!vehicleData && tripId && vehiclePositions.byTripId && vehiclePositions.byTripId.has(tripId)) {
+              vehicleData = vehiclePositions.byTripId.get(tripId);
+            }
+          } else if (vehiclePositions instanceof Map) {
+            // Old format: single Map keyed by tripId (backwards compatibility)
+            if (tripId && vehiclePositions.has(tripId)) {
+              vehicleData = vehiclePositions.get(tripId);
+            }
+          }
+          
+          // Apply vehicle data if found
+          if (vehicleData) {
             // Only use vehicle position data if we don't already have it from prediction
             if (arrival.loadFactor === undefined && vehicleData.loadFactor !== undefined && vehicleData.loadFactor !== null) {
               arrival.loadFactor = vehicleData.loadFactor;
@@ -454,24 +491,52 @@ app.get('/api/arrivals', async (req, res) => {
 
     // Fetch bus data (non-blocking - each route independent)
     try {
-      // For B41 to Downtown Brooklyn Cadman Plaza at Caton Ave (Local)
-      const b41CatonArrivals = await fetchBusData('B41', B41_CATON_AVE_STOP, 'Cadman Plaza');
-      b41CatonArrivals.forEach(arrival => {
-        arrival.location = 'Caton Ave';
-        arrival.isLimited = false;
-      });
-      
-      // For B41 at Clarkson Ave - fetch all buses (both Local and Limited)
-      const b41ClarksonAllArrivals = await fetchBusData('B41', B41_CLARKSON_AVE_STOP, 'Cadman Plaza');
-      const b41ClarksonArrivals = b41ClarksonAllArrivals.map(arrival => ({
-        ...arrival,
-        location: 'Clarkson Ave'
-      }));
-      
-      // Combine B41 arrivals
-      result.buses.b41 = [...b41CatonArrivals, ...b41ClarksonArrivals]
+      // For B41 at Caton Ave - get Local buses only (Caton Ave only serves Local)
+      const b41CatonAllArrivals = await fetchBusData('B41', B41_CATON_AVE_STOP, 'Cadman Plaza');
+      const b41CatonLocalArrivals = b41CatonAllArrivals
+        .filter(arrival => !arrival.isLimited) // Only Local buses (Caton Ave doesn't have Limited)
+        .map(arrival => ({
+          ...arrival,
+          location: 'Caton Ave',
+          isLimited: false // Force Local for Caton Ave
+        }))
         .sort((a, b) => a.minutes - b.minutes)
-        .slice(0, 8);
+        .slice(0, 2); // Next 2 Local buses
+      
+      // For B41 at Clarkson Ave - get Limited buses only (Clarkson Ave only shows Limited)
+      const b41ClarksonAllArrivals = await fetchBusData('B41', B41_CLARKSON_AVE_STOP, 'Cadman Plaza');
+      const b41ClarksonLimitedArrivals = b41ClarksonAllArrivals
+        .filter(arrival => arrival.isLimited === true) // Only Limited buses (strict check)
+        .map(arrival => ({
+          ...arrival,
+          location: 'Clarkson Ave',
+          isLimited: true // Force Limited for Clarkson Ave
+        }))
+        .sort((a, b) => a.minutes - b.minutes)
+        .slice(0, 2); // Next 2 Limited buses
+      
+      // Debug logging
+      console.log(`B41 Caton Ave: ${b41CatonAllArrivals.length} total, ${b41CatonLocalArrivals.length} Local`);
+      console.log(`B41 Clarkson Ave: ${b41ClarksonAllArrivals.length} total, ${b41ClarksonLimitedArrivals.length} Limited`);
+      
+      // Combine B41 arrivals: 2 Local from Caton Ave + 2 Limited from Clarkson Ave
+      // Final safety filter: ensure Caton Ave only has Local, Clarkson Ave only has Limited
+      const b41Combined = [...b41CatonLocalArrivals, ...b41ClarksonLimitedArrivals]
+        .filter(arrival => {
+          // Caton Ave must be Local
+          if (arrival.location === 'Caton Ave' && arrival.isLimited) {
+            return false;
+          }
+          // Clarkson Ave must be Limited
+          if (arrival.location === 'Clarkson Ave' && !arrival.isLimited) {
+            return false;
+          }
+          return true;
+        })
+        .sort((a, b) => a.minutes - b.minutes)
+        .slice(0, 4); // Maximum 4 buses total
+      
+      result.buses.b41 = b41Combined;
     } catch (error) {
       console.error('Error fetching B41 data:', error.message);
       errors.push('B41 bus data temporarily unavailable');
