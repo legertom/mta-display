@@ -31,6 +31,7 @@ const BUS_TIME_BASE_URL = 'https://bustime.mta.info/api/where';
 // Church Ave stop for B/Q trains (Manhattan-bound)
 const CHURCH_AVE_STOP_ID = 'D28N'; // Northbound (Manhattan-bound) at Church Ave
 // Winthrop St stop for 2/5 trains (Manhattan-bound)
+// IRT stop IDs: 235N (northbound/Manhattan-bound) or 235 (with direction in trip)
 const WINTHROP_STOP_ID = '235N'; // Northbound (Manhattan-bound) at Winthrop St
 
 // Bus stop IDs
@@ -65,10 +66,20 @@ async function fetchSubwayFeed(feedUrl, targetRoute, stopId, stopIdPattern) {
             
             if (stopIdPattern) {
               // Use pattern matching (e.g., for D28N, check for D28 and N)
-              matchesStop = stopIdPattern.every(pattern => stopIdStr.includes(pattern));
+              // For IRT lines (235), check for 235 and ensure it's northbound (N suffix or direction)
+              const hasPattern = stopIdPattern.every(pattern => stopIdStr.includes(pattern));
+              // For Winthrop (235), also check if it's northbound (Manhattan-bound)
+              // Northbound stops typically have 'N' suffix or the trip direction indicates north
+              const isNorthbound = stopIdStr.includes('N') || 
+                                 stopIdStr.endsWith('N') ||
+                                 (entity.tripUpdate.trip?.directionId === 1); // 1 = northbound in some systems
+              matchesStop = hasPattern && isNorthbound;
             } else {
               // Exact match or includes stop ID
-              matchesStop = stopIdStr === stopId || (stopIdStr.includes(stopId) && stopIdStr.includes('N'));
+              // For IRT, also try just the number (235) with N suffix or in trip direction
+              matchesStop = stopIdStr === stopId || 
+                          stopIdStr.includes(stopId) || 
+                          (stopIdStr.includes(stopId.replace('N', '')) && stopIdStr.includes('N'));
             }
             
             if (matchesStop) {
@@ -114,11 +125,12 @@ async function fetchSubwayData() {
   churchAveArrivals.push(...qArrivals);
 
   // Fetch 2 train data from IRT feed at Winthrop
-  const train2Arrivals = await fetchSubwayFeed(IRT_FEED_URL, '2', WINTHROP_STOP_ID, ['235', 'N']);
+  // Try multiple stop ID formats: 235N, 235, or any stop containing 235 with N
+  const train2Arrivals = await fetchSubwayFeed(IRT_FEED_URL, '2', WINTHROP_STOP_ID, ['235']);
   winthropArrivals.push(...train2Arrivals);
   
   // Fetch 5 train data from IRT feed at Winthrop
-  const train5Arrivals = await fetchSubwayFeed(IRT_FEED_URL, '5', WINTHROP_STOP_ID, ['235', 'N']);
+  const train5Arrivals = await fetchSubwayFeed(IRT_FEED_URL, '5', WINTHROP_STOP_ID, ['235']);
   winthropArrivals.push(...train5Arrivals);
 
   return {
