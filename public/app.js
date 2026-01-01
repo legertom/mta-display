@@ -22,13 +22,35 @@ function createArrivalItem(arrival, isSubway = false) {
     const route = isSubway ? arrival.route : arrival.route.replace('MTA NYCT_', '');
     const minutes = arrival.minutes;
     const isArriving = minutes === 0;
+    
+    // For B41, show location and service type with Limited as a badge
+    let serviceInfo = '';
+    if (!isSubway && arrival.location) {
+      if (arrival.isLimited) {
+        // Limited gets its own pill/badge, location shown separately
+        serviceInfo = `
+          <div class="arrival-service-badges">
+            <span class="route-badge limited">Limited</span>
+            <span class="arrival-location">at ${arrival.location}</span>
+          </div>
+        `;
+      } else {
+        // Local just shows location
+        serviceInfo = `<div class="arrival-type">Local at ${arrival.location}</div>`;
+      }
+    } else if (!isSubway) {
+      if (arrival.isLimited) {
+        serviceInfo = '<span class="route-badge limited">Limited</span>';
+      } else {
+        serviceInfo = '<div class="arrival-type">Local</div>';
+      }
+    }
 
     item.innerHTML = `
         <div class="arrival-info">
             <div class="arrival-route">${route}</div>
             <div class="arrival-details">
-                ${!isSubway && arrival.isLimited ? '<div class="arrival-type">Limited</div>' : ''}
-                ${!isSubway && !arrival.isLimited ? '<div class="arrival-type">Local</div>' : ''}
+                ${serviceInfo}
             </div>
         </div>
         <div class="arrival-time ${isArriving ? 'arriving' : 'minutes'}">
@@ -82,9 +104,8 @@ async function fetchArrivals() {
         updateSubwayArrivals(data.subway.churchAve);
 
         // Update bus arrivals
-        updateBusArrivals('b41CatonArrivals', data.buses.b41Caton);
-        updateBusArrivals('b41ClarksonArrivals', data.buses.b41Clarkson);
-        updateBusArrivals('b49Arrivals', data.buses.b49);
+        updateBusArrivals('b41Arrivals', data.buses.b41 || []);
+        updateBusArrivals('b49Arrivals', data.buses.b49 || []);
 
         // Update last updated timestamp
         const lastUpdated = document.getElementById('lastUpdated');
@@ -97,8 +118,7 @@ async function fetchArrivals() {
         // Show error messages
         const containers = [
             'subwayArrivals',
-            'b41CatonArrivals',
-            'b41ClarksonArrivals',
+            'b41Arrivals',
             'b49Arrivals'
         ];
 

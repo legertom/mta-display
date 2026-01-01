@@ -91,9 +91,14 @@ main {
 }
 
 .limited {
-    background: #6c757d;
+    background: #dc3545;
+    color: white;
     font-size: 0.85em;
-    padding: 6px 12px;
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .direction {
@@ -128,6 +133,19 @@ main {
     display: flex;
     align-items: center;
     gap: 15px;
+    flex-wrap: wrap;
+}
+
+.arrival-service-badges {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.arrival-location {
+    color: #666;
+    font-size: 0.9em;
 }
 
 .arrival-route {

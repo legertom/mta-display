@@ -123,7 +123,8 @@ async function fetchBusData(routeId, stopId, direction) {
     });
 
     const arrivals = [];
-    const predictions = response.data?.data?.entry?.arrivalsAndDepartures || [];
+    // The API returns arrivals in data.arrivalsAndDepartures (not data.entry.arrivalsAndDepartures)
+    const predictions = response.data?.data?.arrivalsAndDepartures || [];
     
     // Try multiple route ID formats
     const routeIdVariants = [
@@ -188,9 +189,12 @@ async function fetchBusData(routeId, stopId, direction) {
         }
       }
 
+      // Use predicted time if available, otherwise use scheduled time
       const predictedArrivalTime = prediction.predictedArrivalTime || prediction.scheduledArrivalTime;
       if (predictedArrivalTime) {
+        // Convert from milliseconds to minutes
         const minutesUntil = Math.round((predictedArrivalTime - Date.now()) / 60000);
+        // Show arrivals within the next 60 minutes
         if (minutesUntil >= 0 && minutesUntil < 60) {
           arrivals.push({
             route: routeShortName || routeId.replace('MTA NYCT_', ''),
@@ -221,12 +225,26 @@ app.get('/api/arrivals', async (req, res) => {
     const subwayArrivals = await fetchSubwayData();
 
     // Fetch bus data
-    // Note: Stop IDs need to be verified - update these with actual stop IDs
-    // For B41 to Downtown Brooklyn Cadman Plaza at Caton Ave
+    // For B41 to Downtown Brooklyn Cadman Plaza at Caton Ave (Local)
     const b41CatonArrivals = await fetchBusData('B41', B41_CATON_AVE_STOP, 'Cadman Plaza');
+    // Add location info to Caton Ave arrivals (these are local)
+    b41CatonArrivals.forEach(arrival => {
+      arrival.location = 'Caton Ave';
+      arrival.isLimited = false; // Caton Ave only has local
+    });
     
-    // For B41 at Clarkson Ave (will show both local and limited)
+    // For B41 at Clarkson Ave (Limited only - filter for limited)
     const b41ClarksonArrivals = await fetchBusData('B41', B41_CLARKSON_AVE_STOP, 'Cadman Plaza');
+    // Filter for limited only and add location
+    const b41ClarksonLimited = b41ClarksonArrivals
+      .filter(arrival => arrival.isLimited)
+      .map(arrival => ({
+        ...arrival,
+        location: 'Clarkson Ave'
+      }));
+    
+    // Combine B41 arrivals: Local from Caton, Limited from Clarkson
+    const b41Combined = [...b41CatonArrivals, ...b41ClarksonLimited].sort((a, b) => a.minutes - b.minutes);
     
     // For B49 to Bed Stuy Fulton St at Rogers and Lenox Road
     const b49Arrivals = await fetchBusData('B49', B49_ROGERS_LENOX_STOP, 'Fulton');
@@ -236,8 +254,7 @@ app.get('/api/arrivals', async (req, res) => {
         churchAve: subwayArrivals
       },
       buses: {
-        b41Caton: b41CatonArrivals,
-        b41Clarkson: b41ClarksonArrivals,
+        b41: b41Combined,
         b49: b49Arrivals
       },
       timestamp: new Date().toISOString()
