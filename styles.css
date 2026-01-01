@@ -4,6 +4,21 @@
     box-sizing: border-box;
 }
 
+/* Prevent iOS/Safari auto-linking */
+a[href^="tel"],
+a[href^="sms"],
+a[x-apple-data-detectors] {
+    color: inherit !important;
+    text-decoration: none !important;
+    pointer-events: none;
+}
+
+.arrival-type,
+.arrival-item,
+.route-badge {
+    text-decoration: none !important;
+}
+
 body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -40,6 +55,45 @@ header h1 {
     font-size: 0.85em;
     opacity: 0.8;
     font-weight: 300;
+}
+
+/* Header section toggles */
+.header-toggles {
+    display: flex;
+    gap: 8px;
+}
+
+.section-toggle {
+    background: rgba(255, 255, 255, 0.15);
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 0.85em;
+    font-weight: 600;
+    color: white;
+    cursor: pointer;
+    transition: opacity 0.2s, background 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.section-toggle.active {
+    background: rgba(255, 255, 255, 0.3);
+    opacity: 1;
+}
+
+.section-toggle:not(.active) {
+    opacity: 0.4;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.section-toggle:hover {
+    transform: scale(1.1);
+}
+
+/* Hidden sections */
+.arrival-section.hidden {
+    display: none;
 }
 
 main {

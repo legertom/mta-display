@@ -3,13 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="format-detection" content="address=no">
+    <meta name="format-detection" content="date=no">
     <title>MTA Arrival Times</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>🚇 MTA Arrival Times</h1>
+            <div class="header-toggles">
+                <button class="section-toggle active" data-section="subway">Subway</button>
+                <button class="section-toggle active" data-section="bus">Bus</button>
+            </div>
             <div class="last-updated" id="lastUpdated">Loading...</div>
         </header>
 

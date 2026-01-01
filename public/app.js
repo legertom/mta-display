@@ -11,6 +11,10 @@ let activeSubwayRoutes = new Set(['B', 'Q', '2', '5']);
 const BUS_FILTER_KEY = 'mta-bus-filters';
 let activeBusRoutes = new Set(['B41', 'B49']);
 
+// Section visibility state
+const SECTION_VISIBILITY_KEY = 'mta-section-visibility';
+let visibleSections = new Set(['subway', 'bus']);
+
 // Load filter preferences from localStorage
 function loadFilterPreferences() {
     try {
@@ -24,10 +28,16 @@ function loadFilterPreferences() {
             const routes = JSON.parse(savedBus);
             activeBusRoutes = new Set(routes);
         }
+        const savedSections = localStorage.getItem(SECTION_VISIBILITY_KEY);
+        if (savedSections) {
+            const sections = JSON.parse(savedSections);
+            visibleSections = new Set(sections);
+        }
     } catch (e) {
         console.warn('Could not load filter preferences:', e);
     }
     updateFilterBadgeUI();
+    updateSectionVisibility();
 }
 
 // Save filter preferences to localStorage
@@ -35,9 +45,48 @@ function saveFilterPreferences() {
     try {
         localStorage.setItem(SUBWAY_FILTER_KEY, JSON.stringify([...activeSubwayRoutes]));
         localStorage.setItem(BUS_FILTER_KEY, JSON.stringify([...activeBusRoutes]));
+        localStorage.setItem(SECTION_VISIBILITY_KEY, JSON.stringify([...visibleSections]));
     } catch (e) {
         console.warn('Could not save filter preferences:', e);
     }
+}
+
+// Update section visibility UI
+function updateSectionVisibility() {
+    // Update toggle buttons
+    document.querySelectorAll('.section-toggle').forEach(toggle => {
+        const section = toggle.dataset.section;
+        if (visibleSections.has(section)) {
+            toggle.classList.add('active');
+        } else {
+            toggle.classList.remove('active');
+        }
+    });
+
+    // Update section visibility
+    const subwaySection = document.querySelector('.subway-section-full');
+    const busSection = document.querySelector('.bus-section-full');
+
+    if (subwaySection) {
+        subwaySection.classList.toggle('hidden', !visibleSections.has('subway'));
+    }
+    if (busSection) {
+        busSection.classList.toggle('hidden', !visibleSections.has('bus'));
+    }
+}
+
+// Toggle section visibility
+function toggleSection(section) {
+    if (visibleSections.has(section)) {
+        // Don't allow hiding all sections
+        if (visibleSections.size > 1) {
+            visibleSections.delete(section);
+        }
+    } else {
+        visibleSections.add(section);
+    }
+    saveFilterPreferences();
+    updateSectionVisibility();
 }
 
 // Update filter badge UI to match state
@@ -533,6 +582,13 @@ document.querySelectorAll('.filter-badge').forEach(badge => {
         } else {
             toggleSubwayRoute(route);
         }
+    });
+});
+
+// Set up section toggle click handlers
+document.querySelectorAll('.section-toggle').forEach(toggle => {
+    toggle.addEventListener('click', () => {
+        toggleSection(toggle.dataset.section);
     });
 });
 
