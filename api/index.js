@@ -276,28 +276,151 @@ async function fetchBusVehiclePositions(routeId) {
   }
 }
 
+// Helper function to fetch bus data using SIRI API (more reliable real-time predictions)
+async function fetchBusDataSIRI(routeId, stopId) {
+  if (!BUS_TIME_API_KEY) {
+    return { arrivals: [], vehicleMap: new Map() };
+  }
+  
+  try {
+    // Use SIRI stop monitoring for real-time predicted arrival times
+    const url = `https://bustime.mta.info/api/siri/stop-monitoring.json`;
+    const response = await axios.get(url, {
+      params: {
+        key: BUS_TIME_API_KEY,
+        MonitoringRef: stopId,
+        LineRef: `MTA NYCT_${routeId}`
+      },
+      timeout: 10000
+    });
+    
+    const arrivals = [];
+    const vehicleMap = new Map();
+    
+    const stopMonitoringDeliveries = response.data?.Siri?.ServiceDelivery?.StopMonitoringDelivery || [];
+    
+    for (const delivery of stopMonitoringDeliveries) {
+      const monitoredStopVisits = delivery.MonitoredStopVisit || [];
+      
+      for (const visit of monitoredStopVisits) {
+        const call = visit.MonitoredVehicleJourney?.MonitoredCall;
+        const journey = visit.MonitoredVehicleJourney;
+        
+        if (!call || !journey) continue;
+        
+        // Get predicted or expected arrival time
+        const arrivalTime = call.ExpectedArrivalTime || call.AimedArrivalTime;
+        if (!arrivalTime) continue;
+        
+        // Parse ISO 8601 time string
+        const arrivalTimestamp = new Date(arrivalTime).getTime();
+        const minutesUntil = Math.round((arrivalTimestamp - Date.now()) / 60000);
+        
+        if (minutesUntil >= -2 && minutesUntil < 120) {
+          const tripId = journey.FramedVehicleJourneyRef?.DatedVehicleJourneyRef;
+          const tripHeadsign = journey.DestinationName || '';
+          const isLimited = tripHeadsign.toUpperCase().includes('LTD') || 
+                           tripHeadsign.toUpperCase().includes('LIMITED');
+          
+          // Get passenger count and capacity from Extensions.Capacities
+          const extensions = call.Extensions || {};
+          const capacities = extensions.Capacities || {};
+          const passengerCount = capacities.EstimatedPassengerCount;
+          const passengerCapacity = capacities.EstimatedPassengerCapacity;
+          
+          // Calculate percentage full if we have both count and capacity
+          let occupancyPercentage = null;
+          if (passengerCount !== undefined && passengerCount !== null && 
+              passengerCapacity !== undefined && passengerCapacity !== null && 
+              passengerCapacity > 0) {
+            occupancyPercentage = Math.round((passengerCount / passengerCapacity) * 100);
+          }
+          
+          const arrival = {
+            route: journey.PublishedLineName || routeId,
+            minutes: Math.max(0, minutesUntil),
+            isLimited: isLimited,
+            headsign: tripHeadsign,
+            arrivalTime: new Date(arrivalTimestamp),
+            tripId: tripId
+          };
+          
+          // Add occupancy and passenger data
+          if (journey.Occupancy) {
+            arrival.occupancyStatus = journey.Occupancy;
+          }
+          if (passengerCount !== undefined && passengerCount !== null) {
+            arrival.passengerCount = passengerCount;
+          }
+          if (passengerCapacity !== undefined && passengerCapacity !== null) {
+            arrival.passengerCapacity = passengerCapacity;
+          }
+          if (occupancyPercentage !== null) {
+            arrival.occupancyPercentage = occupancyPercentage;
+          }
+          if (capacities.EstimatedPassengerLoadFactor) {
+            arrival.loadFactor = capacities.EstimatedPassengerLoadFactor;
+          }
+          
+          arrivals.push(arrival);
+          
+          // Also store in vehicleMap for reference
+          if (tripId) {
+            vehicleMap.set(tripId, {
+              occupancyStatus: journey.Occupancy,
+              passengerCount: passengerCount
+            });
+          }
+        }
+      }
+    }
+    
+    return { arrivals, vehicleMap };
+  } catch (error) {
+    console.warn(`SIRI stop monitoring failed for ${routeId} at ${stopId}:`, error.message);
+    return { arrivals: [], vehicleMap: new Map() };
+  }
+}
+
 // Helper function to fetch bus data
 async function fetchBusData(routeId, stopId, direction) {
   if (!BUS_TIME_API_KEY) {
     console.warn('⚠️  BUS_TIME_API_KEY not set - skipping bus data fetch');
-    console.warn('⚠️  Environment check:', {
-      hasKey: !!BUS_TIME_API_KEY,
-      keyLength: BUS_TIME_API_KEY ? BUS_TIME_API_KEY.length : 0,
-      envKeys: Object.keys(process.env).filter(k => k.includes('BUS') || k.includes('API'))
-    });
     return [];
   }
   
   try {
+    // Try SIRI stop monitoring first for real-time predictions
+    const siriData = await fetchBusDataSIRI(routeId, stopId);
+    
+    // If SIRI returns data, use it (it has real-time predictions)
+    if (siriData.arrivals.length > 0) {
+      // Filter by direction if needed (for B49)
+      if (direction && direction.toLowerCase().includes('fulton')) {
+        return siriData.arrivals.filter(arrival => {
+          const headsignLower = arrival.headsign.toLowerCase();
+          return headsignLower.includes('fulton') ||
+                 headsignLower.includes('bed stuy') ||
+                 headsignLower.includes('bedford-stuyvesant') ||
+                 headsignLower.includes('bed-stuy');
+        });
+      }
+      
+      return siriData.arrivals;
+    }
+    
+    // Fallback to regular arrivals endpoint if SIRI doesn't return data
     // Fetch vehicle positions for occupancy data (if available)
     const vehiclePositions = await fetchBusVehiclePositions(`MTA NYCT_${routeId}`);
     
-    // Bus Time API endpoint for arrivals
+    // Bus Time API endpoint for arrivals with time window parameters
     const url = `${BUS_TIME_BASE_URL}/arrivals-and-departures-for-stop/${stopId}.json`;
     const response = await axios.get(url, {
       params: {
         key: BUS_TIME_API_KEY,
-        includePolylines: false
+        includePolylines: false,
+        minutesBefore: 5,
+        minutesAfter: 120
       },
       timeout: 10000 // 10 second timeout
     });
