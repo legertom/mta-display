@@ -218,7 +218,7 @@ async function fetchBusData(routeId, stopId, direction) {
 }
 
 // API endpoint to get all arrival data
-app.get('/arrivals', async (req, res) => {
+app.get('/api/arrivals', async (req, res) => {
   try {
     // Fetch subway data
     const subwayArrivals = await fetchSubwayData();
@@ -266,7 +266,7 @@ app.get('/arrivals', async (req, res) => {
 });
 
 // Endpoint to search for stop IDs (helper endpoint)
-app.get('/search-stops', async (req, res) => {
+app.get('/api/search-stops', async (req, res) => {
   const query = req.query.q;
   if (!query) {
     return res.status(400).json({ error: 'Query parameter required' });
@@ -296,5 +296,6 @@ app.get('/search-stops', async (req, res) => {
 });
 
 // Export the Express app as a serverless function for Vercel
+// Vercel will automatically handle routing /api/* to this function
 module.exports = app;
 
