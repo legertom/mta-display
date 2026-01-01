@@ -182,8 +182,8 @@ async function fetchSubwayData() {
   winthropArrivals.push(...train5Arrivals);
 
   return {
-    churchAve: churchAveArrivals.sort((a, b) => a.minutes - b.minutes).slice(0, 3),
-    winthrop: winthropArrivals.sort((a, b) => a.minutes - b.minutes).slice(0, 3)
+    churchAve: churchAveArrivals.sort((a, b) => a.minutes - b.minutes).filter(a => a.minutes <= 30),
+    winthrop: winthropArrivals.sort((a, b) => a.minutes - b.minutes).filter(a => a.minutes <= 30)
   };
 }
 
@@ -559,51 +559,27 @@ app.get('/api/arrivals', async (req, res) => {
     // Fetch subway data
     const subwayArrivals = await fetchSubwayData();
 
-    // Fetch bus data
-    // For B41 at Caton Ave - get Local buses only (Caton Ave only serves Local)
-    const b41CatonAllArrivals = await fetchBusData('B41', B41_CATON_AVE_STOP, null);
-    const b41CatonLocalArrivals = b41CatonAllArrivals
-      .filter(arrival => !arrival.isLimited) // Only Local buses (Caton Ave doesn't have Limited)
-      .map(arrival => ({
-        ...arrival,
-        location: 'Caton Ave',
-        isLimited: false // Force Local for Caton Ave
-      }))
-      .sort((a, b) => a.minutes - b.minutes)
-      .slice(0, 2); // Next 2 Local buses
-    
-    // For B41 at Clarkson Ave - get Limited buses only (Clarkson Ave only shows Limited)
-    const b41ClarksonAllArrivals = await fetchBusData('B41', B41_CLARKSON_AVE_STOP, null);
-    const b41ClarksonLimitedArrivals = b41ClarksonAllArrivals
-      .filter(arrival => arrival.isLimited === true) // Only Limited buses (strict check)
-      .map(arrival => ({
-        ...arrival,
-        location: 'Clarkson Ave',
-        isLimited: true // Force Limited for Clarkson Ave
-      }))
-      .sort((a, b) => a.minutes - b.minutes)
-      .slice(0, 2); // Next 2 Limited buses
-    
+    // Fetch bus data - get ALL B41 buses from both stops
+    const b41CatonArrivals = await fetchBusData('B41', B41_CATON_AVE_STOP, null);
+    const b41CatonWithLocation = b41CatonArrivals.map(arrival => ({
+      ...arrival,
+      location: 'Caton Ave'
+    }));
+
+    const b41ClarksonArrivals = await fetchBusData('B41', B41_CLARKSON_AVE_STOP, null);
+    const b41ClarksonWithLocation = b41ClarksonArrivals.map(arrival => ({
+      ...arrival,
+      location: 'Clarkson Ave'
+    }));
+
     // Debug logging
-    console.log(`B41 Caton Ave: ${b41CatonAllArrivals.length} total, ${b41CatonLocalArrivals.length} Local`);
-    console.log(`B41 Clarkson Ave: ${b41ClarksonAllArrivals.length} total, ${b41ClarksonLimitedArrivals.length} Limited`);
-    
-    // Combine B41 arrivals: 2 Local from Caton Ave + 2 Limited from Clarkson Ave
-    // Final safety filter: ensure Caton Ave only has Local, Clarkson Ave only has Limited
-    const b41Combined = [...b41CatonLocalArrivals, ...b41ClarksonLimitedArrivals]
-      .filter(arrival => {
-        // Caton Ave must be Local
-        if (arrival.location === 'Caton Ave' && arrival.isLimited) {
-          return false;
-        }
-        // Clarkson Ave must be Limited
-        if (arrival.location === 'Clarkson Ave' && !arrival.isLimited) {
-          return false;
-        }
-        return true;
-      })
+    console.log(`B41 Caton Ave: ${b41CatonArrivals.length} buses`);
+    console.log(`B41 Clarkson Ave: ${b41ClarksonArrivals.length} buses`);
+
+    // Combine all B41 arrivals and filter to next 30 minutes
+    const b41Combined = [...b41CatonWithLocation, ...b41ClarksonWithLocation]
       .sort((a, b) => a.minutes - b.minutes)
-      .slice(0, 4); // Maximum 4 buses total
+      .filter(arrival => arrival.minutes <= 30);
     
     // For B49 to Bed Stuy Fulton St at Rogers and Lenox Road
     const b49Arrivals = await fetchBusData('B49', B49_ROGERS_LENOX_STOP, 'Fulton');

@@ -366,8 +366,10 @@ main {
 }
 
 .arrival-location {
-    color: #666;
-    font-size: 0.9em;
+    color: #333;
+    font-size: 1.4em;
+    font-family: Helvetica, 'Helvetica Neue', Arial, sans-serif;
+    font-weight: 500;
 }
 
 .arrival-route {
@@ -382,8 +384,24 @@ main {
 }
 
 .arrival-type {
-    font-size: 0.85em;
-    color: #666;
+    font-size: 1.4em;
+    color: #333;
+    font-family: Helvetica, 'Helvetica Neue', Arial, sans-serif;
+    font-weight: 500;
+}
+
+.service-indicator {
+    display: inline-block;
+    background: #dc3545;
+    color: white;
+    font-size: 0.65em;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-right: 8px;
+    vertical-align: middle;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .arrival-occupancy {

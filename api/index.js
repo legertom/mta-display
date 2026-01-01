@@ -260,10 +260,10 @@ async function fetchSubwayData() {
   const qArrivals = await fetchSubwayFeed(Q_TRAIN_FEED_URL, 'Q', CHURCH_AVE_STOP_ID, 'D28', TIMES_SQ_Q_STOP_ID, 'R16');
   allArrivals.push(...qArrivals);
 
-  // Sort by arrival time and return next 2-3
+  // Sort by arrival time and return all within 30 minutes
   return allArrivals
     .sort((a, b) => a.minutes - b.minutes)
-    .slice(0, 3);
+    .filter(arrival => arrival.minutes <= 30);
 }
 
 // Helper function to fetch subway data for 2/5 trains at Winthrop St
@@ -278,10 +278,10 @@ async function fetchWinthropData() {
   const train5Arrivals = await fetchSubwayFeed(IRT_FEED_URL, '5', WINTHROP_ST_STOP_ID, '241', TIMES_SQ_5_STOP_ID, '127');
   allArrivals.push(...train5Arrivals);
 
-  // Sort by arrival time and return next 3
+  // Sort by arrival time and return all within 30 minutes
   return allArrivals
     .sort((a, b) => a.minutes - b.minutes)
-    .slice(0, 3);
+    .filter(arrival => arrival.minutes <= 30);
 }
 
 // Helper function to fetch subway data for trains arriving at Times Square
@@ -833,51 +833,28 @@ app.get('/api/arrivals', async (req, res) => {
 
     // Fetch bus data (non-blocking - each route independent)
     try {
-      // For B41 at Caton Ave - get Local buses only (Caton Ave only serves Local)
-      // Since the stop itself determines service type, take all buses and mark as Local
-      const b41CatonAllArrivals = await fetchBusData('B41', B41_CATON_AVE_STOP, 'Cadman Plaza');
-      const b41CatonLocalArrivals = b41CatonAllArrivals
-        .map(arrival => ({
-          ...arrival,
-          location: 'Caton Ave',
-          isLimited: false // Force Local for Caton Ave (stop determines service type)
-        }))
-        .sort((a, b) => a.minutes - b.minutes)
-        .slice(0, 2); // Next 2 Local buses
-      
-      // For B41 at Clarkson Ave - get Limited buses only (Clarkson Ave only shows Limited)
-      // Since the stop itself determines service type, take all buses and mark as Limited
-      const b41ClarksonAllArrivals = await fetchBusData('B41', B41_CLARKSON_AVE_STOP, 'Cadman Plaza');
-      const b41ClarksonLimitedArrivals = b41ClarksonAllArrivals
-        .map(arrival => ({
-          ...arrival,
-          location: 'Clarkson Ave',
-          isLimited: true // Force Limited for Clarkson Ave (stop determines service type)
-        }))
-        .sort((a, b) => a.minutes - b.minutes)
-        .slice(0, 2); // Next 2 Limited buses
-      
+      // Get ALL B41 buses from both stops
+      const b41CatonArrivals = await fetchBusData('B41', B41_CATON_AVE_STOP, 'Cadman Plaza');
+      const b41CatonWithLocation = b41CatonArrivals.map(arrival => ({
+        ...arrival,
+        location: 'Caton Ave'
+      }));
+
+      const b41ClarksonArrivals = await fetchBusData('B41', B41_CLARKSON_AVE_STOP, 'Cadman Plaza');
+      const b41ClarksonWithLocation = b41ClarksonArrivals.map(arrival => ({
+        ...arrival,
+        location: 'Clarkson Ave'
+      }));
+
       // Debug logging
-      console.log(`B41 Caton Ave: ${b41CatonAllArrivals.length} total, ${b41CatonLocalArrivals.length} Local`);
-      console.log(`B41 Clarkson Ave: ${b41ClarksonAllArrivals.length} total, ${b41ClarksonLimitedArrivals.length} Limited`);
-      
-      // Combine B41 arrivals: 2 Local from Caton Ave + 2 Limited from Clarkson Ave
-      // Final safety filter: ensure Caton Ave only has Local, Clarkson Ave only has Limited
-      const b41Combined = [...b41CatonLocalArrivals, ...b41ClarksonLimitedArrivals]
-        .filter(arrival => {
-          // Caton Ave must be Local
-          if (arrival.location === 'Caton Ave' && arrival.isLimited) {
-            return false;
-          }
-          // Clarkson Ave must be Limited
-          if (arrival.location === 'Clarkson Ave' && !arrival.isLimited) {
-            return false;
-          }
-          return true;
-        })
+      console.log(`B41 Caton Ave: ${b41CatonArrivals.length} buses`);
+      console.log(`B41 Clarkson Ave: ${b41ClarksonArrivals.length} buses`);
+
+      // Combine all B41 arrivals and filter to next 30 minutes
+      const b41Combined = [...b41CatonWithLocation, ...b41ClarksonWithLocation]
         .sort((a, b) => a.minutes - b.minutes)
-        .slice(0, 4); // Maximum 4 buses total
-      
+        .filter(arrival => arrival.minutes <= 30);
+
       result.buses.b41 = b41Combined;
     } catch (error) {
       console.error('Error fetching B41 data:', error.message);

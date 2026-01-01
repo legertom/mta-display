@@ -356,28 +356,26 @@ function createArrivalItem(arrival, isSubway = false) {
       }
     }
     
-    // For B41, show location and service type with Limited as a badge
+    // For buses, show location with subtle Limited indicator if applicable
     let serviceInfo = '';
     if (!isSubway && arrival.location) {
-      // Always show location and service type (Limited or Local)
       if (arrival.isLimited) {
-        // Limited gets its own pill/badge, location shown separately
+        // Limited: show small "Ltd" indicator before location
         serviceInfo = `
-          <div class="arrival-service-badges">
-            <span class="route-badge limited">Limited</span>
-            <span class="arrival-location">at ${arrival.location}</span>
+          <div class="arrival-type">
+            <span class="service-indicator">Ltd</span>${arrival.location}
           </div>
         `;
       } else {
-        // Local shows as text with location
-        serviceInfo = `<div class="arrival-type">Local at ${arrival.location}</div>`;
+        // Local: just show location (Local is assumed default)
+        serviceInfo = `<div class="arrival-type">${arrival.location}</div>`;
       }
     } else if (!isSubway) {
-      // Fallback if no location (shouldn't happen for B41)
+      // Fallback if no location
       if (arrival.isLimited) {
-        serviceInfo = '<span class="route-badge limited">Limited</span>';
+        serviceInfo = '<div class="arrival-type"><span class="service-indicator">Ltd</span></div>';
       } else {
-        serviceInfo = '<div class="arrival-type">Local</div>';
+        serviceInfo = '';
       }
     }
 
