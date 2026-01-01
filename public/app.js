@@ -403,57 +403,54 @@ function createArrivalItem(arrival, isSubway = false) {
             // First check if Times Square data is embedded in the arrival (from same trip update)
             if (arrival.timesSquareArrival) {
                 const tsqData = arrival.timesSquareArrival;
-                const tsqMinutes = tsqData.minutes;
-                const tsqTime = tsqData.arrivalTime instanceof Date 
-                    ? tsqData.arrivalTime 
+                const tsqTime = tsqData.arrivalTime instanceof Date
+                    ? tsqData.arrivalTime
                     : new Date(tsqData.arrivalTime);
                 const timeStr = tsqTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-                const estimatedLabel = tsqData.estimated ? ' (estimated)' : '';
-                
+
                 timesSquareInfo = `
                     <div class="times-square-info" style="display: none;">
                         <div class="times-square-label">→ Times Square:</div>
-                        <div class="times-square-time">${timeStr} (${formatMinutes(tsqMinutes)})${estimatedLabel}</div>
+                        <div class="times-square-time">${timeStr}</div>
                     </div>
                 `;
             }
             // Otherwise check the timesSquareMap (from separate Times Square fetch)
             else if (arrival.tripId && timesSquareMap[arrival.tripId]) {
                 const tsqData = timesSquareMap[arrival.tripId];
-                const tsqMinutes = tsqData.minutes;
                 // Handle both Date objects and ISO strings
-                const tsqTime = tsqData.arrivalTime instanceof Date 
-                    ? tsqData.arrivalTime 
+                const tsqTime = tsqData.arrivalTime instanceof Date
+                    ? tsqData.arrivalTime
                     : new Date(tsqData.arrivalTime);
                 const timeStr = tsqTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-                
+
                 timesSquareInfo = `
                     <div class="times-square-info" style="display: none;">
                         <div class="times-square-label">→ Times Square:</div>
-                        <div class="times-square-time">${timeStr} (${formatMinutes(tsqMinutes)})</div>
+                        <div class="times-square-time">${timeStr}</div>
                     </div>
                 `;
             } else {
                 // Train goes to Times Square but we don't have specific arrival data
                 // Calculate estimated time based on typical travel times
-                // Q train: Church Ave to Times Square is approximately 28 minutes
+                // Q train: Church Ave to Times Square is approximately 28 minutes (or 38 if local)
                 // 2/5 train: Winthrop St to Times Square is approximately 38 minutes
-                const estimatedMinutes = route === 'Q' 
-                    ? minutes + 28  // Q train estimate
+                const estimatedMinutes = route === 'Q'
+                    ? minutes + 28  // Q train estimate (backend handles local/express)
                     : minutes + 38;  // 2/5 train estimate
-                
+
                 // Ensure arrivalTime is a Date object
-                const arrivalTimeDate = arrival.arrivalTime instanceof Date 
-                    ? arrival.arrivalTime 
+                const arrivalTimeDate = arrival.arrivalTime instanceof Date
+                    ? arrival.arrivalTime
                     : new Date(arrival.arrivalTime);
-                
+
                 const estimatedArrivalTime = new Date(arrivalTimeDate.getTime() + (estimatedMinutes - minutes) * 60000);
                 const timeStr = estimatedArrivalTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-                
+
                 timesSquareInfo = `
                     <div class="times-square-info" style="display: none;">
                         <div class="times-square-label">→ Times Square:</div>
-                        <div class="times-square-time">${timeStr} (${formatMinutes(estimatedMinutes)}) (estimated)</div>
+                        <div class="times-square-time">${timeStr}</div>
                     </div>
                 `;
             }

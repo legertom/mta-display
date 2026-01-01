@@ -48,6 +48,41 @@ const B41_CLARKSON_AVE_STOP = 'MTA_303242'; // FLATBUSH AV/CLARKSON AV
 // B49 stop
 const B49_ROGERS_LENOX_STOP = 'MTA_303944'; // ROGERS AV/LENOX RD
 
+// Local-only stops that indicate local Q service (stops that express Q would skip)
+// If a trip includes any of these stops, it's running local
+const Q_LOCAL_ONLY_STOPS = ['D27', 'D25', 'D29']; // Beverly Rd, Newkirk Plaza, Parkside Ave
+
+// Helper function to detect if a trip is running local based on stops
+function detectLocalService(stopIds, route) {
+  if (route !== 'Q') return false;
+
+  // Check if any local-only stops are in the trip
+  const hasLocalStops = stopIds.some(stopId => {
+    const baseStopId = stopId.replace(/[NS]$/, ''); // Remove N/S suffix
+    return Q_LOCAL_ONLY_STOPS.includes(baseStopId);
+  });
+
+  return hasLocalStops;
+}
+
+// Helper function to estimate travel time based on service pattern
+function estimateTravelTime(route, isLocal) {
+  if (route === 'Q') {
+    if (isLocal) {
+      // Local Q: approximately 35-40 minutes from Church Ave to Times Square
+      // More stops = slower service
+      return 38; // Conservative estimate for local
+    } else {
+      // Express Q: approximately 25-30 minutes
+      return 28;
+    }
+  } else if (route === '2' || route === '5') {
+    // 2/5 trains - no express/local variation on this segment
+    return 38;
+  }
+  return 30; // Default fallback
+}
+
 // Helper function to fetch subway data from a specific feed
 // Can optionally look for a second stop (like Times Square) in the same trip
 async function fetchSubwayFeed(feedUrl, targetRoute, stopId, stopPrefix, secondStopId = null, secondStopPrefix = null) {
@@ -104,17 +139,13 @@ async function fetchSubwayFeed(feedUrl, targetRoute, stopId, stopPrefix, secondS
           let primaryStopArrival = null;
           let secondStopArrival = null;
           
-          // Debug: log all stop IDs for Q/2/5 trains to find Times Square
-          const shouldDebug = (targetRoute === 'Q' || targetRoute === '2' || targetRoute === '5') && secondStopId;
-          const debugStops = [];
-          
+          // Collect all stop IDs in this trip for local/express detection
+          const allStopIds = entity.tripUpdate.stopTimeUpdate.map(su => su.stopId || '');
+          const isLocalService = detectLocalService(allStopIds, targetRoute);
+
           for (const stopUpdate of entity.tripUpdate.stopTimeUpdate) {
             const currentStopId = stopUpdate.stopId || '';
             const arrivalTime = stopUpdate.arrival?.time || stopUpdate.departure?.time;
-            
-            if (shouldDebug) {
-              debugStops.push(currentStopId);
-            }
             
             // Check if this is the primary stop
             if (currentStopId === stopId || (currentStopId.includes(stopPrefix) && currentStopId.includes('N'))) {
@@ -179,19 +210,18 @@ async function fetchSubwayFeed(feedUrl, targetRoute, stopId, stopPrefix, secondS
                 arrivalTime: new Date(secondStopArrival.time * 1000)
               };
             } else if (secondStopId && secondStopPrefix) {
-              // If Times Square wasn't found in the trip update, estimate based on typical travel times
-              // Q train: Church Ave to Times Square is approximately 25-30 minutes
-              // 2/5 train: Winthrop St to Times Square is approximately 35-40 minutes
-              const estimatedMinutes = targetRoute === 'Q' 
-                ? primaryStopArrival.minutes + 28  // Q train estimate
-                : primaryStopArrival.minutes + 38;  // 2/5 train estimate
-              
+              // If Times Square wasn't found in the trip update, estimate based on service pattern
+              // Use smart detection: check if train is running local (more stops = longer travel time)
+              const travelTime = estimateTravelTime(targetRoute, isLocalService);
+              const estimatedMinutes = primaryStopArrival.minutes + travelTime;
+
               if (estimatedMinutes > 0 && estimatedMinutes < 120) {
-                const estimatedArrivalTime = new Date(primaryStopArrival.time * 1000 + (estimatedMinutes - primaryStopArrival.minutes) * 60000);
+                const estimatedArrivalTime = new Date(primaryStopArrival.time * 1000 + travelTime * 60000);
                 arrival.timesSquareArrival = {
                   minutes: estimatedMinutes,
                   arrivalTime: estimatedArrivalTime,
-                  estimated: true // Mark as estimated
+                  estimated: true, // Mark as estimated
+                  isLocal: isLocalService // Include service type for display
                 };
               }
             }
