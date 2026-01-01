@@ -116,15 +116,17 @@ function toggleSubwayRoute(route) {
     }
     saveFilterPreferences();
     updateFilterBadgeUI();
-    // Re-render with current data
-    if (lastSubwayData) {
-        renderFilteredSubwayArrivals(lastSubwayData);
-    }
+        // Re-render with current data
+        if (lastSubwayData) {
+            renderFilteredSubwayArrivals(lastSubwayData);
+        }
 }
 
 // Store last fetched data for re-filtering
 let lastSubwayData = null;
 let lastBusData = null;
+let lastTimesSquareData = null;
+let timesSquareMap = {}; // Map of tripId -> Times Square arrival info
 
 // Combine and filter subway arrivals
 function renderFilteredSubwayArrivals(subwayData) {
@@ -183,6 +185,7 @@ function renderFilteredBusArrivals(busData) {
     // Update display
     updateBusArrivals('busArrivals', filtered);
 }
+
 
 // Format minutes for display
 function formatMinutes(minutes) {
@@ -380,12 +383,80 @@ function createArrivalItem(arrival, isSubway = false) {
 
     // Create route display - circular badge for subway, regular for bus
     let routeDisplay;
+    let timesSquareInfo = '';
+    let isClickable = false;
+    
     if (isSubway) {
         const badgeClass = getSubwayBadgeClass(route);
         routeDisplay = `<span class="route-badge ${badgeClass}">${route}</span>`;
         // Show station for subway arrivals
         if (arrival.station) {
             serviceInfo = `<div class="arrival-type">${arrival.station}</div>`;
+        }
+        
+        // Check if this train goes to Times Square (Q, 2, or 5 trains)
+        // Make ALL Q, 2, and 5 trains clickable - they all go to Times Square!
+        const goesToTimesSquare = (route === 'Q' || route === '2' || route === '5');
+        if (goesToTimesSquare) {
+            isClickable = true;
+            
+            // First check if Times Square data is embedded in the arrival (from same trip update)
+            if (arrival.timesSquareArrival) {
+                const tsqData = arrival.timesSquareArrival;
+                const tsqMinutes = tsqData.minutes;
+                const tsqTime = tsqData.arrivalTime instanceof Date 
+                    ? tsqData.arrivalTime 
+                    : new Date(tsqData.arrivalTime);
+                const timeStr = tsqTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                const estimatedLabel = tsqData.estimated ? ' (estimated)' : '';
+                
+                timesSquareInfo = `
+                    <div class="times-square-info" style="display: none;">
+                        <div class="times-square-label">→ Times Square:</div>
+                        <div class="times-square-time">${timeStr} (${formatMinutes(tsqMinutes)})${estimatedLabel}</div>
+                    </div>
+                `;
+            }
+            // Otherwise check the timesSquareMap (from separate Times Square fetch)
+            else if (arrival.tripId && timesSquareMap[arrival.tripId]) {
+                const tsqData = timesSquareMap[arrival.tripId];
+                const tsqMinutes = tsqData.minutes;
+                // Handle both Date objects and ISO strings
+                const tsqTime = tsqData.arrivalTime instanceof Date 
+                    ? tsqData.arrivalTime 
+                    : new Date(tsqData.arrivalTime);
+                const timeStr = tsqTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                
+                timesSquareInfo = `
+                    <div class="times-square-info" style="display: none;">
+                        <div class="times-square-label">→ Times Square:</div>
+                        <div class="times-square-time">${timeStr} (${formatMinutes(tsqMinutes)})</div>
+                    </div>
+                `;
+            } else {
+                // Train goes to Times Square but we don't have specific arrival data
+                // Calculate estimated time based on typical travel times
+                // Q train: Church Ave to Times Square is approximately 28 minutes
+                // 2/5 train: Winthrop St to Times Square is approximately 38 minutes
+                const estimatedMinutes = route === 'Q' 
+                    ? minutes + 28  // Q train estimate
+                    : minutes + 38;  // 2/5 train estimate
+                
+                // Ensure arrivalTime is a Date object
+                const arrivalTimeDate = arrival.arrivalTime instanceof Date 
+                    ? arrival.arrivalTime 
+                    : new Date(arrival.arrivalTime);
+                
+                const estimatedArrivalTime = new Date(arrivalTimeDate.getTime() + (estimatedMinutes - minutes) * 60000);
+                const timeStr = estimatedArrivalTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                
+                timesSquareInfo = `
+                    <div class="times-square-info" style="display: none;">
+                        <div class="times-square-label">→ Times Square:</div>
+                        <div class="times-square-time">${timeStr} (${formatMinutes(estimatedMinutes)}) (estimated)</div>
+                    </div>
+                `;
+            }
         }
     } else {
         routeDisplay = `<div class="arrival-route">${route}</div>`;
@@ -397,12 +468,37 @@ function createArrivalItem(arrival, isSubway = false) {
             <div class="arrival-details">
                 ${serviceInfo}
                 ${occupancyInfo ? `<div class="arrival-occupancy">${occupancyInfo}</div>` : ''}
+                ${timesSquareInfo}
             </div>
         </div>
         <div class="arrival-time ${isArriving ? 'arriving' : 'minutes'}">
             ${formatMinutes(minutes)}
         </div>
     `;
+
+    // Add clickable class and handler for trains that go to Times Square
+    // Do this AFTER setting innerHTML so the elements exist
+    if (isClickable) {
+        item.classList.add('clickable-train');
+        if (arrival.tripId) {
+            item.setAttribute('data-trip-id', arrival.tripId);
+        }
+        item.setAttribute('title', 'Click to see Times Square arrival time');
+        
+        // Add click handler after innerHTML is set
+        item.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            const tsqInfo = item.querySelector('.times-square-info');
+            if (tsqInfo) {
+                const isVisible = tsqInfo.style.display !== 'none';
+                tsqInfo.style.display = isVisible ? 'none' : 'block';
+                item.classList.toggle('expanded', !isVisible);
+            }
+        });
+        
+        // Note: tripId may be missing, but train is still clickable with estimated times
+    }
 
     return item;
 }
@@ -458,6 +554,9 @@ async function fetchArrivals(retryCount = 0) {
         if (data.errors && data.errors.length > 0) {
             console.warn('Partial data received:', data.warnings);
         }
+
+        // Store Times Square map for looking up train arrivals
+        timesSquareMap = data.subway?.timesSquareMap || {};
 
         // Update subway arrivals with filtering
         renderFilteredSubwayArrivals(data.subway || {});

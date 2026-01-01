@@ -36,6 +36,10 @@ const BUS_GTFS_REALTIME_VEHICLES_URL = 'https://gtfsrt.prod.obanyc.com/vehiclePo
 const CHURCH_AVE_STOP_ID = 'D28N'; // Northbound (Manhattan-bound) at Church Ave
 // Winthrop St stop for 2/5 trains (Manhattan-bound)
 const WINTHROP_ST_STOP_ID = '241N'; // Northbound (Manhattan-bound) at Winthrop St
+// Times Square - 42nd St stop IDs
+const TIMES_SQ_Q_STOP_ID = 'R16N'; // Q train at Times Square (NQRW line, northbound)
+const TIMES_SQ_2_STOP_ID = '127N'; // 2 train at Times Square (IRT line, northbound)
+const TIMES_SQ_5_STOP_ID = '127N'; // 5 train at Times Square (IRT line, northbound) - same platform as 2
 
 // Bus stop IDs
 // B41 stops on Flatbush Avenue
@@ -45,7 +49,8 @@ const B41_CLARKSON_AVE_STOP = 'MTA_303242'; // FLATBUSH AV/CLARKSON AV
 const B49_ROGERS_LENOX_STOP = 'MTA_303944'; // ROGERS AV/LENOX RD
 
 // Helper function to fetch subway data from a specific feed
-async function fetchSubwayFeed(feedUrl, targetRoute, stopId, stopPrefix) {
+// Can optionally look for a second stop (like Times Square) in the same trip
+async function fetchSubwayFeed(feedUrl, targetRoute, stopId, stopPrefix, secondStopId = null, secondStopPrefix = null) {
   const arrivals = [];
   const vehiclePositions = new Map(); // Map trip IDs to vehicle positions for occupancy data
   
@@ -75,38 +80,129 @@ async function fetchSubwayFeed(feedUrl, targetRoute, stopId, stopPrefix) {
     for (const entity of feed.entity) {
       if (entity.tripUpdate && entity.tripUpdate.stopTimeUpdate) {
         const routeId = entity.tripUpdate.trip.routeId;
-        const tripId = entity.tripUpdate.trip.tripId;
+        // Try to get tripId from multiple possible locations
+        let tripId = entity.tripUpdate.trip.tripId;
+        
+        // If tripId is missing, try to use entity.id as fallback
+        if (!tripId && entity.id) {
+          tripId = entity.id;
+        }
+        
+        // Also check if tripId is in a different format or location
+        if (!tripId && entity.tripUpdate.trip) {
+          // Sometimes tripId might be in startDate or other fields
+          tripId = entity.tripUpdate.trip.startDate || 
+                   entity.tripUpdate.trip.startTime ||
+                   null;
+        }
         
         if (routeId === targetRoute) {
           // Get occupancy data for this trip if available
           const vehicleData = vehiclePositions.get(tripId);
           
+          // Look for the primary stop (Church Ave/Winthrop) and optionally the second stop (Times Square)
+          let primaryStopArrival = null;
+          let secondStopArrival = null;
+          
+          // Debug: log all stop IDs for Q/2/5 trains to find Times Square
+          const shouldDebug = (targetRoute === 'Q' || targetRoute === '2' || targetRoute === '5') && secondStopId;
+          const debugStops = [];
+          
           for (const stopUpdate of entity.tripUpdate.stopTimeUpdate) {
-            // Check if this stop matches the target stop (Manhattan-bound)
-            // Stop ID format might vary, so we check for partial match
             const currentStopId = stopUpdate.stopId || '';
+            const arrivalTime = stopUpdate.arrival?.time || stopUpdate.departure?.time;
+            
+            if (shouldDebug) {
+              debugStops.push(currentStopId);
+            }
+            
+            // Check if this is the primary stop
             if (currentStopId === stopId || (currentStopId.includes(stopPrefix) && currentStopId.includes('N'))) {
-              const arrivalTime = stopUpdate.arrival?.time || stopUpdate.departure?.time;
               if (arrivalTime) {
                 const currentTime = Math.floor(Date.now() / 1000);
                 const minutesUntil = Math.round((arrivalTime - currentTime) / 60);
-                if (minutesUntil >= 0 && minutesUntil < 60) {
-                  const arrival = {
-                    route: routeId,
-                    minutes: minutesUntil,
-                    arrivalTime: new Date(arrivalTime * 1000)
+                if (minutesUntil >= 0 && minutesUntil < 120) { // Increased window
+                  primaryStopArrival = {
+                    time: arrivalTime,
+                    minutes: minutesUntil
                   };
-                  
-                  // Add occupancy/crowding data if available
-                  if (vehicleData) {
-                    arrival.occupancyStatus = vehicleData.occupancyStatus;
-                    arrival.occupancyPercentage = vehicleData.occupancyPercentage;
-                  }
-                  
-                  arrivals.push(arrival);
                 }
               }
             }
+            
+            // Check if this is the second stop (Times Square) if specified
+            // Try multiple matching strategies
+            if (secondStopId && secondStopPrefix && primaryStopArrival) {
+              const matchesSecondStop = 
+                currentStopId === secondStopId || 
+                currentStopId === secondStopId.replace('N', '') ||
+                (currentStopId.includes(secondStopPrefix) && (currentStopId.includes('N') || currentStopId.endsWith(secondStopPrefix))) ||
+                currentStopId.startsWith(secondStopPrefix);
+              
+              if (matchesSecondStop) {
+                if (arrivalTime) {
+                  const currentTime = Math.floor(Date.now() / 1000);
+                  const minutesUntil = Math.round((arrivalTime - currentTime) / 60);
+                  // Times Square should be after the primary stop, so allow future times
+                  if (minutesUntil >= -5 && minutesUntil < 120) {
+                    secondStopArrival = {
+                      time: arrivalTime,
+                      minutes: minutesUntil
+                    };
+                    // Found Times Square stop
+                  }
+                }
+              }
+            }
+          }
+          
+          // Debug output (only log if needed for troubleshooting)
+          // if (shouldDebug && primaryStopArrival && !secondStopArrival) {
+          //   console.log(`Route ${targetRoute} trip ${tripId}: Found primary stop but not Times Square. All stops in trip:`, debugStops.slice(0, 20));
+          // }
+          
+          // If we found the primary stop, create an arrival entry
+          if (primaryStopArrival && primaryStopArrival.minutes < 60) {
+            const arrival = {
+              route: routeId,
+              minutes: primaryStopArrival.minutes,
+              arrivalTime: new Date(primaryStopArrival.time * 1000),
+              tripId: tripId || null // Include tripId to track this specific train
+            };
+            
+            // Note: tripId may be missing, will use entity.id as fallback or estimated times
+            
+            // If we also found the second stop (Times Square), include that data
+            if (secondStopArrival) {
+              arrival.timesSquareArrival = {
+                minutes: secondStopArrival.minutes,
+                arrivalTime: new Date(secondStopArrival.time * 1000)
+              };
+            } else if (secondStopId && secondStopPrefix) {
+              // If Times Square wasn't found in the trip update, estimate based on typical travel times
+              // Q train: Church Ave to Times Square is approximately 25-30 minutes
+              // 2/5 train: Winthrop St to Times Square is approximately 35-40 minutes
+              const estimatedMinutes = targetRoute === 'Q' 
+                ? primaryStopArrival.minutes + 28  // Q train estimate
+                : primaryStopArrival.minutes + 38;  // 2/5 train estimate
+              
+              if (estimatedMinutes > 0 && estimatedMinutes < 120) {
+                const estimatedArrivalTime = new Date(primaryStopArrival.time * 1000 + (estimatedMinutes - primaryStopArrival.minutes) * 60000);
+                arrival.timesSquareArrival = {
+                  minutes: estimatedMinutes,
+                  arrivalTime: estimatedArrivalTime,
+                  estimated: true // Mark as estimated
+                };
+              }
+            }
+            
+            // Add occupancy/crowding data if available
+            if (vehicleData) {
+              arrival.occupancyStatus = vehicleData.occupancyStatus;
+              arrival.occupancyPercentage = vehicleData.occupancyPercentage;
+            }
+            
+            arrivals.push(arrival);
           }
         }
       }
@@ -130,8 +226,8 @@ async function fetchSubwayData() {
   const bArrivals = await fetchSubwayFeed(B_TRAIN_FEED_URL, 'B', CHURCH_AVE_STOP_ID, 'D28');
   allArrivals.push(...bArrivals);
   
-  // Fetch Q train data from NQRW feed
-  const qArrivals = await fetchSubwayFeed(Q_TRAIN_FEED_URL, 'Q', CHURCH_AVE_STOP_ID, 'D28');
+  // Fetch Q train data from NQRW feed, also look for Times Square in the same trip
+  const qArrivals = await fetchSubwayFeed(Q_TRAIN_FEED_URL, 'Q', CHURCH_AVE_STOP_ID, 'D28', TIMES_SQ_Q_STOP_ID, 'R16');
   allArrivals.push(...qArrivals);
 
   // Sort by arrival time and return next 2-3
@@ -144,18 +240,73 @@ async function fetchSubwayData() {
 async function fetchWinthropData() {
   const allArrivals = [];
   
-  // Fetch 2 train data from IRT feed
-  const train2Arrivals = await fetchSubwayFeed(IRT_FEED_URL, '2', WINTHROP_ST_STOP_ID, '241');
+  // Fetch 2 train data from IRT feed, also look for Times Square in the same trip
+  const train2Arrivals = await fetchSubwayFeed(IRT_FEED_URL, '2', WINTHROP_ST_STOP_ID, '241', TIMES_SQ_2_STOP_ID, '127');
   allArrivals.push(...train2Arrivals);
   
-  // Fetch 5 train data from IRT feed
-  const train5Arrivals = await fetchSubwayFeed(IRT_FEED_URL, '5', WINTHROP_ST_STOP_ID, '241');
+  // Fetch 5 train data from IRT feed, also look for Times Square in the same trip
+  const train5Arrivals = await fetchSubwayFeed(IRT_FEED_URL, '5', WINTHROP_ST_STOP_ID, '241', TIMES_SQ_5_STOP_ID, '127');
   allArrivals.push(...train5Arrivals);
 
   // Sort by arrival time and return next 3
   return allArrivals
     .sort((a, b) => a.minutes - b.minutes)
     .slice(0, 3);
+}
+
+// Helper function to fetch subway data for trains arriving at Times Square
+// Returns both the arrivals list and a map of tripId -> Times Square arrival time
+async function fetchTimesSquareData() {
+  const allArrivals = [];
+  const tripIdToTimesSquare = new Map(); // Map tripId to Times Square arrival info
+  
+  // Fetch Q train data at Times Square from NQRW feed
+  const qArrivals = await fetchSubwayFeed(Q_TRAIN_FEED_URL, 'Q', TIMES_SQ_Q_STOP_ID, 'R16');
+  allArrivals.push(...qArrivals);
+  // Map tripIds to Times Square arrivals for Q trains
+  qArrivals.forEach(arrival => {
+    if (arrival.tripId) {
+      tripIdToTimesSquare.set(arrival.tripId, {
+        minutes: arrival.minutes,
+        arrivalTime: arrival.arrivalTime,
+        route: arrival.route
+      });
+    }
+  });
+  
+  // Fetch 2 train data at Times Square from IRT feed
+  const train2Arrivals = await fetchSubwayFeed(IRT_FEED_URL, '2', TIMES_SQ_2_STOP_ID, '127');
+  allArrivals.push(...train2Arrivals);
+  train2Arrivals.forEach(arrival => {
+    if (arrival.tripId) {
+      tripIdToTimesSquare.set(arrival.tripId, {
+        minutes: arrival.minutes,
+        arrivalTime: arrival.arrivalTime,
+        route: arrival.route
+      });
+    }
+  });
+  
+  // Fetch 5 train data at Times Square from IRT feed
+  const train5Arrivals = await fetchSubwayFeed(IRT_FEED_URL, '5', TIMES_SQ_5_STOP_ID, '127');
+  allArrivals.push(...train5Arrivals);
+  train5Arrivals.forEach(arrival => {
+    if (arrival.tripId) {
+      tripIdToTimesSquare.set(arrival.tripId, {
+        minutes: arrival.minutes,
+        arrivalTime: arrival.arrivalTime,
+        route: arrival.route
+      });
+    }
+  });
+
+  // Sort by arrival time and return next 5 (more trains at Times Square)
+  return {
+    arrivals: allArrivals
+      .sort((a, b) => a.minutes - b.minutes)
+      .slice(0, 5),
+    tripIdMap: tripIdToTimesSquare
+  };
 }
 
 // Helper function to fetch bus vehicle positions for occupancy data from GTFS-Realtime
@@ -603,7 +754,7 @@ async function fetchBusData(routeId, stopId, direction) {
 app.get('/api/arrivals', async (req, res) => {
   const errors = [];
   const result = {
-    subway: { churchAve: [], winthrop: [] },
+    subway: { churchAve: [], winthrop: [], timesSquare: [], timesSquareMap: {} },
     buses: { b41: [], b49: [] },
     timestamp: new Date().toISOString(),
     errors: []
@@ -625,6 +776,29 @@ app.get('/api/arrivals', async (req, res) => {
       console.error('Error fetching Winthrop subway data:', error.message);
       errors.push('Winthrop subway data temporarily unavailable');
       result.errors.push('subway-winthrop');
+    }
+
+    try {
+      const timesSquareData = await fetchTimesSquareData();
+      result.subway.timesSquare = timesSquareData.arrivals;
+      // Convert Map to object for JSON serialization
+      // Convert Date objects to ISO strings for JSON
+      const mapObj = {};
+      timesSquareData.tripIdMap.forEach((value, key) => {
+        mapObj[key] = {
+          minutes: value.minutes,
+          arrivalTime: value.arrivalTime instanceof Date 
+            ? value.arrivalTime.toISOString() 
+            : value.arrivalTime,
+          route: value.route
+        };
+      });
+      result.subway.timesSquareMap = mapObj;
+      console.log('Times Square map created with', Object.keys(mapObj).length, 'entries');
+    } catch (error) {
+      console.error('Error fetching Times Square subway data:', error.message);
+      errors.push('Times Square subway data temporarily unavailable');
+      result.errors.push('subway-timesquare');
     }
 
     // Fetch bus data (non-blocking - each route independent)
@@ -703,6 +877,7 @@ app.get('/api/arrivals', async (req, res) => {
     // Only return 500 if ALL sources failed
     const hasAnyData = result.subway.churchAve.length > 0 || 
                        result.subway.winthrop.length > 0 ||
+                       (result.subway.timesSquare && result.subway.timesSquare.length > 0) ||
                        result.buses.b41.length > 0 || 
                        result.buses.b49.length > 0;
 
