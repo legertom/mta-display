@@ -1,0 +1,478 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    padding: 20px;
+    color: #333;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+}
+
+header {
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    color: white;
+    padding: 30px;
+    text-align: center;
+}
+
+header h1 {
+    font-size: 2.5em;
+    margin-bottom: 10px;
+    font-weight: 700;
+}
+
+.last-updated {
+    font-size: 0.9em;
+    opacity: 0.9;
+    font-weight: 300;
+}
+
+main {
+    padding: 30px;
+}
+
+.arrival-section {
+    margin-bottom: 40px;
+    padding: 25px;
+    background: #f8f9fa;
+    border-radius: 15px;
+    border-left: 4px solid #667eea;
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 15px;
+}
+
+.arrival-section h2 {
+    font-size: 1.5em;
+    margin-bottom: 0;
+    color: #1e3c72;
+}
+
+.header-badges {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.route-badge.header-badge {
+    width: 22px !important;
+    height: 22px !important;
+    font-size: 0.75em !important;
+}
+
+.route-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+.route-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    font-weight: 700;
+    font-size: 1.3em;
+    color: white;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+/* MTA Official Subway Line Colors */
+.subway-1, .subway-2, .subway-3 {
+    background: #ee352e;
+}
+
+.subway-4, .subway-5, .subway-6 {
+    background: #00933c;
+}
+
+.subway-7 {
+    background: #b933ad;
+}
+
+.subway-a, .subway-c, .subway-e {
+    background: #0039a6;
+}
+
+.subway-b, .subway-d, .subway-f, .subway-m {
+    background: #ff6319;
+}
+
+.subway-g {
+    background: #6cbe45;
+}
+
+.subway-j, .subway-z {
+    background: #996633;
+}
+
+.subway-l {
+    background: #a7a9ac;
+}
+
+.subway-n, .subway-q, .subway-r, .subway-w {
+    background: #fccc0a;
+    color: #333;
+}
+
+.subway-s {
+    background: #808183;
+}
+
+.subway-default {
+    background: #666;
+}
+
+.bus {
+    background: #0039a6;
+    border-radius: 8px;
+    width: auto;
+    min-width: 60px;
+    padding: 8px 14px;
+    font-size: 1.1em;
+}
+
+.route-badge.limited {
+    background: #dc3545;
+    color: white;
+    font-size: 0.75em;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    display: inline-block;
+    width: auto !important;
+    height: auto !important;
+    min-width: fit-content;
+    border-radius: 10px !important;
+}
+
+.direction {
+    color: #666;
+    font-size: 0.95em;
+    font-style: italic;
+}
+
+.arrivals {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.arrival-item {
+    background: white;
+    padding: 18px;
+    border-radius: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.arrival-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.arrival-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.arrival-service-badges {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.arrival-location {
+    color: #666;
+    font-size: 0.9em;
+}
+
+.arrival-route {
+    font-weight: 700;
+    font-size: 1.2em;
+}
+
+.arrival-details {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.arrival-type {
+    font-size: 0.85em;
+    color: #666;
+}
+
+.arrival-occupancy {
+    margin-top: 4px;
+    font-size: 0.85em;
+}
+
+.occupancy-info {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+}
+
+.occupancy-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 0.85em;
+    font-weight: 600;
+}
+
+.status-bar-container {
+    width: 100%;
+    height: 8px;
+    background-color: #e0e0e0;
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+}
+
+.status-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s ease, background-color 0.3s ease;
+}
+
+.status-bar-low {
+    background-color: #28a745; /* Green */
+}
+
+.status-bar-medium {
+    background-color: #ffc107; /* Yellow */
+}
+
+.status-bar-high {
+    background-color: #dc3545; /* Red */
+}
+
+.occupancy-status-bar {
+    width: 100%;
+}
+
+
+.occupancy-empty,
+.occupancy-many {
+    background: #d4edda;
+    color: #155724;
+}
+
+.occupancy-few {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.occupancy-standing {
+    background: #ffeaa7;
+    color: #d63031;
+}
+
+.occupancy-crushed,
+.occupancy-full {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.occupancy-not-accepting {
+    background: #e2e3e5;
+    color: #383d41;
+}
+
+.arrival-time {
+    font-size: 2em;
+    font-weight: 700;
+    color: #667eea;
+    min-width: 80px;
+    text-align: right;
+}
+
+.arrival-time.minutes {
+    font-size: 2.5em;
+}
+
+.arrival-time.arriving {
+    color: #28a745;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+.no-arrivals {
+    padding: 20px;
+    text-align: center;
+    color: #999;
+    font-style: italic;
+}
+
+.loading {
+    padding: 20px;
+    text-align: center;
+    color: #999;
+    position: relative;
+}
+
+.loading::after {
+    content: '...';
+    animation: dots 1.5s steps(4, end) infinite;
+}
+
+@keyframes dots {
+    0%, 20% { content: '.'; }
+    40% { content: '..'; }
+    60%, 100% { content: '...'; }
+}
+
+.error {
+    padding: 20px;
+    text-align: center;
+    color: #721c24;
+    background: #f8d7da;
+    border-radius: 8px;
+    border: 1px solid #f5c6cb;
+}
+
+.error-icon {
+    font-size: 2em;
+    margin-bottom: 10px;
+    display: block;
+}
+
+.error-message {
+    font-weight: 600;
+    margin-bottom: 8px;
+    font-size: 1.1em;
+}
+
+.error-hint {
+    font-size: 0.9em;
+    color: #856404;
+    margin-top: 8px;
+    font-style: italic;
+}
+
+.last-updated.loading {
+    opacity: 0.7;
+    font-style: italic;
+}
+
+.last-updated.error {
+    color: #dc3545;
+    font-weight: 600;
+}
+
+.service-warnings {
+    display: none;
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-top: 15px;
+    color: #856404;
+    font-size: 0.9em;
+    align-items: center;
+    gap: 10px;
+}
+
+.service-warnings .warning-icon {
+    font-size: 1.2em;
+    flex-shrink: 0;
+}
+
+.service-warnings .warning-text {
+    flex: 1;
+}
+
+.refresh-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+footer {
+    padding: 20px 30px;
+    background: #f8f9fa;
+    text-align: center;
+    border-top: 1px solid #dee2e6;
+}
+
+.refresh-btn {
+    background: #667eea;
+    color: white;
+    border: none;
+    padding: 12px 30px;
+    border-radius: 25px;
+    font-size: 1em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.3s, transform 0.2s;
+}
+
+.refresh-btn:hover {
+    background: #5568d3;
+    transform: scale(1.05);
+}
+
+.refresh-btn:active {
+    transform: scale(0.98);
+}
+
+@media (max-width: 600px) {
+    header h1 {
+        font-size: 2em;
+    }
+
+    .arrival-section {
+        padding: 20px;
+    }
+
+    .arrival-time {
+        font-size: 1.8em;
+    }
+
+    .arrival-time.minutes {
+        font-size: 2em;
+    }
+}
+
