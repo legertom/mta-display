@@ -62,8 +62,8 @@ function createArrivalItem(arrival, isSubway = false) {
 }
 
 // Update subway arrivals display
-function updateSubwayArrivals(arrivals) {
-    const container = document.getElementById('subwayArrivals');
+function updateSubwayArrivals(arrivals, containerId) {
+    const container = document.getElementById(containerId);
     container.innerHTML = '';
 
     if (arrivals.length === 0) {
@@ -114,7 +114,8 @@ async function fetchArrivals(retryCount = 0) {
         }
 
         // Update subway arrivals (even if empty)
-        updateSubwayArrivals(data.subway?.churchAve || []);
+        updateSubwayArrivals(data.subway?.churchAve || [], 'subwayArrivals');
+        updateSubwayArrivals(data.subway?.winthrop || [], 'winthropArrivals');
 
         // Update bus arrivals (even if empty)
         updateBusArrivals('b41Arrivals', data.buses?.b41 || []);
@@ -155,7 +156,7 @@ async function fetchArrivals(retryCount = 0) {
 
 // Show loading state
 function showLoadingState() {
-    const containers = ['subwayArrivals', 'b41Arrivals', 'b49Arrivals'];
+    const containers = ['subwayArrivals', 'winthropArrivals', 'b41Arrivals', 'b49Arrivals'];
     containers.forEach(id => {
         const container = document.getElementById(id);
         container.innerHTML = '<div class="loading">Loading...</div>';
@@ -168,7 +169,7 @@ function showLoadingState() {
 
 // Show error state with helpful message
 function showErrorState(message) {
-    const containers = ['subwayArrivals', 'b41Arrivals', 'b49Arrivals'];
+    const containers = ['subwayArrivals', 'winthropArrivals', 'b41Arrivals', 'b49Arrivals'];
     containers.forEach(id => {
         const container = document.getElementById(id);
         container.innerHTML = `

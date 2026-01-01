@@ -86,6 +86,14 @@ main {
     color: #333;
 }
 
+.subway-2 {
+    background: #ee352e;
+}
+
+.subway-5 {
+    background: #00933c;
+}
+
 .bus {
     background: #0039a6;
 }
