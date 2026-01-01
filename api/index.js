@@ -52,7 +52,8 @@ async function fetchSubwayFeed(feedUrl, targetRoute, stopId, stopPrefix) {
   try {
     // No API key needed for these public feeds
     const response = await axios.get(feedUrl, {
-      responseType: 'arraybuffer'
+      responseType: 'arraybuffer',
+      timeout: 10000 // 10 second timeout
     });
 
     const feed = gtfs.transit_realtime.FeedMessage.decode(response.data);
@@ -169,7 +170,8 @@ async function fetchBusVehiclePositionsFromGTFS(routeId) {
       params: {
         key: BUS_TIME_API_KEY
       },
-      responseType: 'arraybuffer'
+      responseType: 'arraybuffer',
+      timeout: 10000 // 10 second timeout
     });
 
     const feed = gtfs.transit_realtime.FeedMessage.decode(response.data);
@@ -240,7 +242,8 @@ async function fetchBusVehiclePositions(routeId) {
       params: {
         key: BUS_TIME_API_KEY,
         includePolylines: false
-      }
+      },
+      timeout: 10000 // 10 second timeout
     });
     
     const vehicleMapByTripId = new Map();
@@ -277,6 +280,11 @@ async function fetchBusVehiclePositions(routeId) {
 async function fetchBusData(routeId, stopId, direction) {
   if (!BUS_TIME_API_KEY) {
     console.warn('⚠️  BUS_TIME_API_KEY not set - skipping bus data fetch');
+    console.warn('⚠️  Environment check:', {
+      hasKey: !!BUS_TIME_API_KEY,
+      keyLength: BUS_TIME_API_KEY ? BUS_TIME_API_KEY.length : 0,
+      envKeys: Object.keys(process.env).filter(k => k.includes('BUS') || k.includes('API'))
+    });
     return [];
   }
   
@@ -290,7 +298,8 @@ async function fetchBusData(routeId, stopId, direction) {
       params: {
         key: BUS_TIME_API_KEY,
         includePolylines: false
-      }
+      },
+      timeout: 10000 // 10 second timeout
     });
 
     const arrivals = [];
@@ -456,6 +465,12 @@ async function fetchBusData(routeId, stopId, direction) {
       console.error('Response status:', error.response.status);
       console.error('Response data:', error.response.data);
     }
+    if (error.code === 'ECONNABORTED') {
+      console.error('Request timeout - MTA API took too long to respond');
+    }
+    if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
+      console.error('Network error - unable to reach MTA API');
+    }
     return [];
   }
 }
@@ -492,25 +507,25 @@ app.get('/api/arrivals', async (req, res) => {
     // Fetch bus data (non-blocking - each route independent)
     try {
       // For B41 at Caton Ave - get Local buses only (Caton Ave only serves Local)
+      // Since the stop itself determines service type, take all buses and mark as Local
       const b41CatonAllArrivals = await fetchBusData('B41', B41_CATON_AVE_STOP, 'Cadman Plaza');
       const b41CatonLocalArrivals = b41CatonAllArrivals
-        .filter(arrival => !arrival.isLimited) // Only Local buses (Caton Ave doesn't have Limited)
         .map(arrival => ({
           ...arrival,
           location: 'Caton Ave',
-          isLimited: false // Force Local for Caton Ave
+          isLimited: false // Force Local for Caton Ave (stop determines service type)
         }))
         .sort((a, b) => a.minutes - b.minutes)
         .slice(0, 2); // Next 2 Local buses
       
       // For B41 at Clarkson Ave - get Limited buses only (Clarkson Ave only shows Limited)
+      // Since the stop itself determines service type, take all buses and mark as Limited
       const b41ClarksonAllArrivals = await fetchBusData('B41', B41_CLARKSON_AVE_STOP, 'Cadman Plaza');
       const b41ClarksonLimitedArrivals = b41ClarksonAllArrivals
-        .filter(arrival => arrival.isLimited === true) // Only Limited buses (strict check)
         .map(arrival => ({
           ...arrival,
           location: 'Clarkson Ave',
-          isLimited: true // Force Limited for Clarkson Ave
+          isLimited: true // Force Limited for Clarkson Ave (stop determines service type)
         }))
         .sort((a, b) => a.minutes - b.minutes)
         .slice(0, 2); // Next 2 Limited buses
@@ -642,6 +657,12 @@ app.get('/api/health', (req, res) => {
     services: {
       subway: 'available',
       bus: BUS_TIME_API_KEY ? 'available' : 'api_key_missing'
+    },
+    environment: {
+      hasBusApiKey: !!BUS_TIME_API_KEY,
+      apiKeyLength: BUS_TIME_API_KEY ? BUS_TIME_API_KEY.length : 0,
+      nodeEnv: process.env.NODE_ENV || 'not_set',
+      vercel: !!process.env.VERCEL
     }
   });
 });
@@ -664,7 +685,8 @@ app.get('/api/debug/bus', async (req, res) => {
         params: {
           key: BUS_TIME_API_KEY,
           includePolylines: false
-        }
+        },
+        timeout: 10000 // 10 second timeout
       });
       vehiclePositionsData = {
         url: vehicleUrl,
@@ -696,7 +718,8 @@ app.get('/api/debug/bus', async (req, res) => {
         params: {
           key: BUS_TIME_API_KEY,
           includePolylines: false
-        }
+        },
+        timeout: 10000 // 10 second timeout
       });
       
       const predictions = arrivalsResponse.data?.data?.arrivalsAndDepartures || [];
