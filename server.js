@@ -22,7 +22,7 @@ const BUS_TIME_API_KEY = process.env.BUS_TIME_API_KEY || '';
 // - 2 and 5 trains: 1234567S feed
 const B_TRAIN_FEED_URL = 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-bdfm';
 const Q_TRAIN_FEED_URL = 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-nqrw';
-const IRT_FEED_URL = 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-1234567S';
+const IRT_FEED_URL = 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs';
 
 // Bus Time API base URL
 const BUS_TIME_BASE_URL = 'https://bustime.mta.info/api/where';
@@ -31,8 +31,8 @@ const BUS_TIME_BASE_URL = 'https://bustime.mta.info/api/where';
 // Church Ave stop for B/Q trains (Manhattan-bound)
 const CHURCH_AVE_STOP_ID = 'D28N'; // Northbound (Manhattan-bound) at Church Ave
 // Winthrop St stop for 2/5 trains (Manhattan-bound)
-// IRT stop IDs: 235N (northbound/Manhattan-bound) or 235 (with direction in trip)
-const WINTHROP_STOP_ID = '235N'; // Northbound (Manhattan-bound) at Winthrop St
+// MTA GTFS stop ID for Winthrop St northbound platform
+const WINTHROP_STOP_ID = '241N'; // Northbound (Manhattan-bound) at Winthrop St
 
 // Bus stop IDs
 // B41 stops on Flatbush Avenue
@@ -44,6 +44,7 @@ const B49_ROGERS_LENOX_STOP = 'MTA_303944'; // ROGERS AV/LENOX RD
 // Helper function to fetch subway data from a specific feed
 async function fetchSubwayFeed(feedUrl, targetRoute, stopId, stopIdPattern) {
   const arrivals = [];
+  const vehiclePositions = new Map(); // Map trip IDs to vehicle positions for occupancy data
   
   try {
     // No API key needed for these public feeds
@@ -53,16 +54,41 @@ async function fetchSubwayFeed(feedUrl, targetRoute, stopId, stopIdPattern) {
 
     const feed = gtfs.transit_realtime.FeedMessage.decode(response.data);
 
-    // Filter for target route at specified stop going Manhattan-bound
+    // First pass: collect vehicle positions with occupancy data
+    for (const entity of feed.entity) {
+      if (entity.vehicle && entity.vehicle.trip && entity.vehicle.trip.routeId === targetRoute) {
+        const tripId = entity.vehicle.trip.tripId;
+        if (tripId && entity.vehicle.occupancyStatus !== undefined) {
+          vehiclePositions.set(tripId, {
+            occupancyStatus: entity.vehicle.occupancyStatus,
+            occupancyPercentage: entity.vehicle.occupancyPercentage
+          });
+        }
+      }
+    }
+
+    // Second pass: process trip updates and match with vehicle positions
     for (const entity of feed.entity) {
       if (entity.tripUpdate && entity.tripUpdate.stopTimeUpdate) {
         const routeId = entity.tripUpdate.trip.routeId;
+        const tripId = entity.tripUpdate.trip.tripId;
         
         if (routeId === targetRoute) {
+          // Get occupancy data for this trip if available
+          const vehicleData = vehiclePositions.get(tripId);
+          
           for (const stopUpdate of entity.tripUpdate.stopTimeUpdate) {
             // Check if this stop matches the target stop (Manhattan-bound)
             const stopIdStr = stopUpdate.stopId || '';
             let matchesStop = false;
+            
+            // Debug: log stop IDs for route 2/5 to find Winthrop
+            if ((targetRoute === '2' || targetRoute === '5') && stopIdStr) {
+              // Only log first few to avoid spam
+              if (arrivals.length === 0 && entity.id && entity.id.includes('00000')) {
+                console.log(`Route ${targetRoute} stop ID: ${stopIdStr}`);
+              }
+            }
             
             if (stopIdPattern) {
               // Use pattern matching (e.g., for D28N, check for D28 and N)
@@ -75,11 +101,21 @@ async function fetchSubwayFeed(feedUrl, targetRoute, stopId, stopIdPattern) {
                                  (entity.tripUpdate.trip?.directionId === 1); // 1 = northbound in some systems
               matchesStop = hasPattern && isNorthbound;
             } else {
-              // Exact match or includes stop ID
-              // For IRT, also try just the number (235) with N suffix or in trip direction
-              matchesStop = stopIdStr === stopId || 
-                          stopIdStr.includes(stopId) || 
-                          (stopIdStr.includes(stopId.replace('N', '')) && stopIdStr.includes('N'));
+              // For IRT lines (2/5 at Winthrop), be more flexible
+              // Stop IDs might be: 235, 235N, or other formats
+              const baseStopId = stopId.replace('N', '').replace('S', '');
+              const containsBaseId = stopIdStr.includes(baseStopId);
+              
+              // For Manhattan-bound (northbound), check for N suffix or direction
+              // IRT northbound typically has N or directionId === 1
+              // Also accept if it's just the number (235) - direction might be in trip
+              const isNorthbound = stopIdStr.includes('N') || 
+                                 stopIdStr.endsWith('N') ||
+                                 stopIdStr === baseStopId || // Sometimes just the number
+                                 stopIdStr.startsWith(baseStopId) ||
+                                 (entity.tripUpdate.trip?.directionId === 1);
+              
+              matchesStop = containsBaseId && isNorthbound;
             }
             
             if (matchesStop) {
@@ -88,11 +124,19 @@ async function fetchSubwayFeed(feedUrl, targetRoute, stopId, stopIdPattern) {
                 const currentTime = Math.floor(Date.now() / 1000);
                 const minutesUntil = Math.round((arrivalTime - currentTime) / 60);
                 if (minutesUntil >= 0 && minutesUntil < 60) {
-                  arrivals.push({
+                  const arrival = {
                     route: routeId,
                     minutes: minutesUntil,
                     arrivalTime: new Date(arrivalTime * 1000)
-                  });
+                  };
+                  
+                  // Add occupancy/crowding data if available
+                  if (vehicleData) {
+                    arrival.occupancyStatus = vehicleData.occupancyStatus;
+                    arrival.occupancyPercentage = vehicleData.occupancyPercentage;
+                  }
+                  
+                  arrivals.push(arrival);
                 }
               }
             }
@@ -125,18 +169,55 @@ async function fetchSubwayData() {
   churchAveArrivals.push(...qArrivals);
 
   // Fetch 2 train data from IRT feed at Winthrop
-  // Try multiple stop ID formats: 235N, 235, or any stop containing 235 with N
-  const train2Arrivals = await fetchSubwayFeed(IRT_FEED_URL, '2', WINTHROP_STOP_ID, ['235']);
+  const train2Arrivals = await fetchSubwayFeed(IRT_FEED_URL, '2', WINTHROP_STOP_ID, ['241', 'N']);
   winthropArrivals.push(...train2Arrivals);
   
   // Fetch 5 train data from IRT feed at Winthrop
-  const train5Arrivals = await fetchSubwayFeed(IRT_FEED_URL, '5', WINTHROP_STOP_ID, ['235']);
+  const train5Arrivals = await fetchSubwayFeed(IRT_FEED_URL, '5', WINTHROP_STOP_ID, ['241', 'N']);
   winthropArrivals.push(...train5Arrivals);
 
   return {
     churchAve: churchAveArrivals.sort((a, b) => a.minutes - b.minutes).slice(0, 3),
     winthrop: winthropArrivals.sort((a, b) => a.minutes - b.minutes).slice(0, 3)
   };
+}
+
+// Helper function to fetch bus vehicle positions for occupancy data
+async function fetchBusVehiclePositions(routeId) {
+  if (!BUS_TIME_API_KEY) {
+    return new Map();
+  }
+  
+  try {
+    // Fetch vehicle positions for the route
+    const url = `${BUS_TIME_BASE_URL}/vehicles-for-route/${routeId}.json`;
+    const response = await axios.get(url, {
+      params: {
+        key: BUS_TIME_API_KEY,
+        includePolylines: false
+      }
+    });
+    
+    const vehicleMap = new Map();
+    const vehicles = response.data?.data?.list || [];
+    
+    for (const vehicle of vehicles) {
+      const tripId = vehicle.tripId;
+      if (tripId) {
+        vehicleMap.set(tripId, {
+          loadFactor: vehicle.loadFactor,
+          occupancyStatus: vehicle.occupancyStatus,
+          occupancyPercentage: vehicle.occupancyPercentage
+        });
+      }
+    }
+    
+    return vehicleMap;
+  } catch (error) {
+    // Vehicle positions endpoint might not be available or might fail
+    // Return empty map - occupancy data is optional
+    return new Map();
+  }
 }
 
 // Helper function to fetch bus data
@@ -147,18 +228,29 @@ async function fetchBusData(routeId, stopId, direction) {
   }
   
   try {
+    // Fetch vehicle positions for occupancy data (if available)
+    const vehiclePositions = await fetchBusVehiclePositions(`MTA NYCT_${routeId}`);
+    
     // Bus Time API endpoint for arrivals
+    // Include time window parameters to get scheduled arrivals, not just real-time predictions
     const url = `${BUS_TIME_BASE_URL}/arrivals-and-departures-for-stop/${stopId}.json`;
     const response = await axios.get(url, {
       params: {
         key: BUS_TIME_API_KEY,
-        includePolylines: false
+        includePolylines: false,
+        minutesBefore: 5, // Include buses that just passed (in case of slight delays)
+        minutesAfter: 120  // Look ahead 2 hours for scheduled arrivals
       }
     });
 
     const arrivals = [];
     // The API returns arrivals in data.arrivalsAndDepartures (not data.entry.arrivalsAndDepartures)
     const predictions = response.data?.data?.arrivalsAndDepartures || [];
+    
+    // Debug: log if we get predictions but no matches
+    if (predictions.length > 0) {
+      console.log(`Found ${predictions.length} predictions for stop ${stopId}, route ${routeId}`);
+    }
     
     // Try multiple route ID formats
     const routeIdVariants = [
@@ -196,47 +288,65 @@ async function fetchBusData(routeId, stopId, direction) {
         prediction.routeLongName?.includes('Limited');
       
       // Check direction if specified (more flexible matching)
-      if (direction) {
-        const directionLower = direction.toLowerCase();
+      // Only filter for B49 which needs specific direction
+      if (direction && direction.toLowerCase().includes('fulton')) {
         const headsignLower = tripHeadsign.toLowerCase();
-        // Match if headsign contains direction keywords
-        // For "Cadman Plaza" - look for "cadman" or "downtown"
-        // For "Fulton St" - look for "fulton" or "bed stuy"
-        const directionKeywords = {
-          'cadman plaza': ['cadman', 'downtown'],
-          'fulton': ['fulton', 'bed stuy', 'bedford-stuyvesant']
-        };
-        
-        let matchesDirection = headsignLower.includes(directionLower);
-        if (!matchesDirection) {
-          // Try keyword matching
-          for (const [key, keywords] of Object.entries(directionKeywords)) {
-            if (directionLower.includes(key)) {
-              matchesDirection = keywords.some(kw => headsignLower.includes(kw));
-              break;
-            }
-          }
-        }
+        // For B49 to Fulton St
+        const matchesDirection = 
+          headsignLower.includes('fulton') ||
+          headsignLower.includes('bed stuy') ||
+          headsignLower.includes('bedford-stuyvesant') ||
+          headsignLower.includes('bed-stuy');
         
         if (!matchesDirection) {
           continue;
         }
       }
+      // For B41, don't filter by direction - show all B41 buses at the stop
 
       // Use predicted time if available, otherwise use scheduled time
       const predictedArrivalTime = prediction.predictedArrivalTime || prediction.scheduledArrivalTime;
       if (predictedArrivalTime) {
         // Convert from milliseconds to minutes
         const minutesUntil = Math.round((predictedArrivalTime - Date.now()) / 60000);
-        // Show arrivals within the next 90 minutes (increased to get more Limited buses)
-        if (minutesUntil >= 0 && minutesUntil < 90) {
-          arrivals.push({
+        // Show arrivals within the next 120 minutes (increased window to catch more buses)
+        // Include buses that are slightly in the past (up to 2 minutes) in case of clock skew
+        if (minutesUntil >= -2 && minutesUntil < 120) {
+          const arrival = {
             route: routeShortName || routeId.replace('MTA NYCT_', ''),
-            minutes: minutesUntil,
+            minutes: Math.max(0, minutesUntil), // Don't show negative minutes
             isLimited: isLimited,
             headsign: tripHeadsign,
             arrivalTime: new Date(predictedArrivalTime)
-          });
+          };
+          
+          // Get occupancy data from vehicle positions if available
+          const tripId = prediction.tripId;
+          if (tripId && vehiclePositions.has(tripId)) {
+            const vehicleData = vehiclePositions.get(tripId);
+            if (vehicleData.loadFactor !== undefined) {
+              arrival.loadFactor = vehicleData.loadFactor;
+            }
+            if (vehicleData.occupancyStatus !== undefined) {
+              arrival.occupancyStatus = vehicleData.occupancyStatus;
+            }
+            if (vehicleData.occupancyPercentage !== undefined) {
+              arrival.occupancyPercentage = vehicleData.occupancyPercentage;
+            }
+          }
+          
+          // Also check for occupancy data directly in the prediction (if API adds it)
+          if (prediction.loadFactor !== undefined) {
+            arrival.loadFactor = prediction.loadFactor;
+          }
+          if (prediction.occupancyStatus !== undefined) {
+            arrival.occupancyStatus = prediction.occupancyStatus;
+          }
+          if (prediction.occupancyPercentage !== undefined) {
+            arrival.occupancyPercentage = prediction.occupancyPercentage;
+          }
+          
+          arrivals.push(arrival);
         }
       }
     }
@@ -261,27 +371,32 @@ app.get('/api/arrivals', async (req, res) => {
     const subwayArrivals = await fetchSubwayData();
 
     // Fetch bus data
-    // For B41 to Downtown Brooklyn Cadman Plaza at Caton Ave (Local)
-    const b41CatonArrivals = await fetchBusData('B41', B41_CATON_AVE_STOP, 'Cadman Plaza');
-    // Add location info to Caton Ave arrivals (these are local)
+    // For B41 at Caton Ave - don't filter by direction, get all B41 buses
+    const b41CatonArrivals = await fetchBusData('B41', B41_CATON_AVE_STOP, null);
+    // Add location info to Caton Ave arrivals and ensure Limited status is preserved
     b41CatonArrivals.forEach(arrival => {
       arrival.location = 'Caton Ave';
-      arrival.isLimited = false; // Caton Ave only has local
+      // Caton Ave typically only has local, but preserve the Limited status if detected
+      if (!arrival.isLimited) {
+        arrival.isLimited = false; // Explicitly mark as Local
+      }
     });
     
     // For B41 at Clarkson Ave - fetch all buses (both Local and Limited)
-    const b41ClarksonAllArrivals = await fetchBusData('B41', B41_CLARKSON_AVE_STOP, 'Cadman Plaza');
+    const b41ClarksonAllArrivals = await fetchBusData('B41', B41_CLARKSON_AVE_STOP, null);
     // Add location info to all Clarkson Ave arrivals (both local and limited)
+    // Preserve the Limited status from the API
     const b41ClarksonArrivals = b41ClarksonAllArrivals.map(arrival => ({
       ...arrival,
       location: 'Clarkson Ave'
+      // isLimited is already set by fetchBusData based on tripHeadsign/routeShortName
     }));
     
-    // Combine B41 arrivals: Local from Caton, and both Local and Limited from Clarkson
-    // Sort by arrival time and limit to show next arrivals
+    // Combine B41 arrivals: All from Caton Ave, and all from Clarkson Ave (both Local and Limited)
+    // Sort by arrival time and show all available buses
     const b41Combined = [...b41CatonArrivals, ...b41ClarksonArrivals]
       .sort((a, b) => a.minutes - b.minutes)
-      .slice(0, 8); // Show up to 8 total (mix of local and limited from both stops)
+      .slice(0, 10); // Show up to 10 total (mix of local and limited from both stops)
     
     // For B49 to Bed Stuy Fulton St at Rogers and Lenox Road
     const b49Arrivals = await fetchBusData('B49', B49_ROGERS_LENOX_STOP, 'Fulton');

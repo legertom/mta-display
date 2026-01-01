@@ -172,6 +172,46 @@ main {
     color: #666;
 }
 
+.arrival-occupancy {
+    margin-top: 4px;
+    font-size: 0.85em;
+}
+
+.occupancy-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 0.85em;
+    font-weight: 600;
+}
+
+.occupancy-empty,
+.occupancy-many {
+    background: #d4edda;
+    color: #155724;
+}
+
+.occupancy-few {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.occupancy-standing {
+    background: #ffeaa7;
+    color: #d63031;
+}
+
+.occupancy-crushed,
+.occupancy-full {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.occupancy-not-accepting {
+    background: #e2e3e5;
+    color: #383d41;
+}
+
 .arrival-time {
     font-size: 2em;
     font-weight: 700;

@@ -14,6 +14,34 @@ function formatMinutes(minutes) {
     }
 }
 
+// Format occupancy status for display
+function formatOccupancyStatus(occupancyStatus, occupancyPercentage) {
+    // Check if we have any occupancy data at all
+    if (occupancyStatus === undefined && occupancyStatus !== 0 && occupancyPercentage === undefined) {
+        return '';
+    }
+    
+    // GTFS-RT occupancy status values
+    const statusMap = {
+        0: { text: 'Empty', class: 'occupancy-empty', emoji: '🟢' },
+        1: { text: 'Many Seats', class: 'occupancy-many', emoji: '🟢' },
+        2: { text: 'Few Seats', class: 'occupancy-few', emoji: '🟡' },
+        3: { text: 'Standing Room', class: 'occupancy-standing', emoji: '🟠' },
+        4: { text: 'Crushed Standing', class: 'occupancy-crushed', emoji: '🔴' },
+        5: { text: 'Full', class: 'occupancy-full', emoji: '🔴' },
+        6: { text: 'Not Accepting', class: 'occupancy-not-accepting', emoji: '⚫' }
+    };
+    
+    const status = statusMap[occupancyStatus] || { text: 'Unknown', class: 'occupancy-unknown', emoji: '⚪' };
+    let display = status.emoji + ' ' + status.text;
+    
+    if (occupancyPercentage !== undefined && occupancyPercentage !== null) {
+        display += ` (${occupancyPercentage}%)`;
+    }
+    
+    return `<span class="occupancy-badge ${status.class}">${display}</span>`;
+}
+
 // Format arrival item
 function createArrivalItem(arrival, isSubway = false) {
     const item = document.createElement('div');
@@ -23,9 +51,40 @@ function createArrivalItem(arrival, isSubway = false) {
     const minutes = arrival.minutes;
     const isArriving = minutes === 0;
     
+    // Get occupancy info for subway trains and buses
+    let occupancyInfo = '';
+    if (isSubway) {
+      // For subways, check occupancyStatus (can be 0, so check !== undefined explicitly)
+      if (arrival.occupancyStatus !== undefined && arrival.occupancyStatus !== null) {
+        occupancyInfo = formatOccupancyStatus(arrival.occupancyStatus, arrival.occupancyPercentage);
+      }
+    } else {
+      // For buses, check for occupancyStatus first, then loadFactor
+      // occupancyStatus can be 0 (Empty), so we need to check !== undefined && !== null
+      if (arrival.occupancyStatus !== undefined && arrival.occupancyStatus !== null) {
+        occupancyInfo = formatOccupancyStatus(arrival.occupancyStatus, arrival.occupancyPercentage);
+      } else if (arrival.loadFactor !== undefined && arrival.loadFactor !== null) {
+        // Convert loadFactor (0-1) to occupancy status
+        // loadFactor: 0 = empty, 0.5 = half full, 1 = full
+        let occupancyStatus;
+        if (arrival.loadFactor < 0.2) {
+          occupancyStatus = 1; // Many seats
+        } else if (arrival.loadFactor < 0.5) {
+          occupancyStatus = 2; // Few seats
+        } else if (arrival.loadFactor < 0.8) {
+          occupancyStatus = 3; // Standing room
+        } else {
+          occupancyStatus = 5; // Full
+        }
+        const percentage = Math.round(arrival.loadFactor * 100);
+        occupancyInfo = formatOccupancyStatus(occupancyStatus, percentage);
+      }
+    }
+    
     // For B41, show location and service type with Limited as a badge
     let serviceInfo = '';
     if (!isSubway && arrival.location) {
+      // Always show location and service type (Limited or Local)
       if (arrival.isLimited) {
         // Limited gets its own pill/badge, location shown separately
         serviceInfo = `
@@ -35,10 +94,11 @@ function createArrivalItem(arrival, isSubway = false) {
           </div>
         `;
       } else {
-        // Local just shows location
+        // Local shows as text with location
         serviceInfo = `<div class="arrival-type">Local at ${arrival.location}</div>`;
       }
     } else if (!isSubway) {
+      // Fallback if no location (shouldn't happen for B41)
       if (arrival.isLimited) {
         serviceInfo = '<span class="route-badge limited">Limited</span>';
       } else {
@@ -51,6 +111,7 @@ function createArrivalItem(arrival, isSubway = false) {
             <div class="arrival-route">${route}</div>
             <div class="arrival-details">
                 ${serviceInfo}
+                ${occupancyInfo ? `<div class="arrival-occupancy">${occupancyInfo}</div>` : ''}
             </div>
         </div>
         <div class="arrival-time ${isArriving ? 'arriving' : 'minutes'}">
