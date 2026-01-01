@@ -24,19 +24,21 @@ body {
 header {
     background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
     color: white;
-    padding: 30px;
-    text-align: center;
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 header h1 {
-    font-size: 2.5em;
-    margin-bottom: 10px;
-    font-weight: 700;
+    font-size: 1.2em;
+    margin: 0;
+    font-weight: 600;
 }
 
 .last-updated {
-    font-size: 0.9em;
-    opacity: 0.9;
+    font-size: 0.85em;
+    opacity: 0.8;
     font-weight: 300;
 }
 
@@ -80,6 +82,51 @@ main {
     width: 22px !important;
     height: 22px !important;
     font-size: 0.75em !important;
+}
+
+/* Filter badge toggle styles */
+.filter-badges {
+    display: flex;
+    gap: 8px;
+}
+
+.filter-badge {
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.2s, box-shadow 0.2s;
+    position: relative;
+}
+
+.filter-badge:hover {
+    transform: scale(1.1);
+}
+
+.filter-badge.active {
+    opacity: 1;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.filter-badge:not(.active) {
+    opacity: 0.35;
+    box-shadow: none;
+}
+
+.filter-badge:not(.active):hover {
+    opacity: 0.6;
+}
+
+/* Make subway and bus sections span full width on tablet landscape */
+.subway-section-full,
+.bus-section-full {
+    grid-column: 1 / -1;
+}
+
+/* Bus filter badges - wider for text */
+.filter-badge.bus.header-badge {
+    width: auto !important;
+    min-width: 40px !important;
+    padding: 4px 10px !important;
+    border-radius: 6px !important;
 }
 
 .route-info {
@@ -493,11 +540,11 @@ footer {
     }
 
     header {
-        padding: 40px;
+        padding: 15px 30px;
     }
 
     header h1 {
-        font-size: 3em;
+        font-size: 1.4em;
     }
 
     .sections-grid {
@@ -543,6 +590,25 @@ footer {
         padding: 16px 40px;
         font-size: 1.1em;
     }
+
+    /* Larger filter badges for tablet touch */
+    .filter-badge.header-badge {
+        width: 36px !important;
+        height: 36px !important;
+        font-size: 1em !important;
+    }
+
+    .filter-badge.bus.header-badge {
+        width: auto !important;
+        height: auto !important;
+        min-width: 50px !important;
+        padding: 8px 14px !important;
+        font-size: 1em !important;
+    }
+
+    .filter-badges {
+        gap: 12px;
+    }
 }
 
 /* Tablet Landscape (iPad) - 2 column layout */
@@ -583,10 +649,6 @@ footer {
 @media (min-width: 1400px) {
     .container {
         max-width: 1400px;
-    }
-
-    header h1 {
-        font-size: 3.5em;
     }
 
     .arrival-section h2 {

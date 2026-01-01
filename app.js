@@ -3,6 +3,138 @@ const UPDATE_INTERVAL = 30000; // 30 seconds
 
 let updateTimer = null;
 
+// Subway filter state - which routes are active
+const SUBWAY_FILTER_KEY = 'mta-subway-filters';
+let activeSubwayRoutes = new Set(['B', 'Q', '2', '5']);
+
+// Bus filter state
+const BUS_FILTER_KEY = 'mta-bus-filters';
+let activeBusRoutes = new Set(['B41', 'B49']);
+
+// Load filter preferences from localStorage
+function loadFilterPreferences() {
+    try {
+        const savedSubway = localStorage.getItem(SUBWAY_FILTER_KEY);
+        if (savedSubway) {
+            const routes = JSON.parse(savedSubway);
+            activeSubwayRoutes = new Set(routes);
+        }
+        const savedBus = localStorage.getItem(BUS_FILTER_KEY);
+        if (savedBus) {
+            const routes = JSON.parse(savedBus);
+            activeBusRoutes = new Set(routes);
+        }
+    } catch (e) {
+        console.warn('Could not load filter preferences:', e);
+    }
+    updateFilterBadgeUI();
+}
+
+// Save filter preferences to localStorage
+function saveFilterPreferences() {
+    try {
+        localStorage.setItem(SUBWAY_FILTER_KEY, JSON.stringify([...activeSubwayRoutes]));
+        localStorage.setItem(BUS_FILTER_KEY, JSON.stringify([...activeBusRoutes]));
+    } catch (e) {
+        console.warn('Could not save filter preferences:', e);
+    }
+}
+
+// Update filter badge UI to match state
+function updateFilterBadgeUI() {
+    document.querySelectorAll('.filter-badge').forEach(badge => {
+        const route = badge.dataset.route;
+        const isBus = badge.classList.contains('bus-filter');
+        const activeSet = isBus ? activeBusRoutes : activeSubwayRoutes;
+
+        if (activeSet.has(route)) {
+            badge.classList.add('active');
+        } else {
+            badge.classList.remove('active');
+        }
+    });
+}
+
+// Toggle a subway route filter
+function toggleSubwayRoute(route) {
+    if (activeSubwayRoutes.has(route)) {
+        // Don't allow turning off all routes
+        if (activeSubwayRoutes.size > 1) {
+            activeSubwayRoutes.delete(route);
+        }
+    } else {
+        activeSubwayRoutes.add(route);
+    }
+    saveFilterPreferences();
+    updateFilterBadgeUI();
+    // Re-render with current data
+    if (lastSubwayData) {
+        renderFilteredSubwayArrivals(lastSubwayData);
+    }
+}
+
+// Store last fetched data for re-filtering
+let lastSubwayData = null;
+let lastBusData = null;
+
+// Combine and filter subway arrivals
+function renderFilteredSubwayArrivals(subwayData) {
+    lastSubwayData = subwayData;
+
+    // Combine arrivals from both stations
+    const allArrivals = [
+        ...(subwayData.churchAve || []).map(a => ({ ...a, station: 'Church Ave' })),
+        ...(subwayData.winthrop || []).map(a => ({ ...a, station: 'Winthrop St' }))
+    ];
+
+    // Filter by active routes
+    const filtered = allArrivals.filter(a => activeSubwayRoutes.has(a.route));
+
+    // Sort by minutes
+    filtered.sort((a, b) => a.minutes - b.minutes);
+
+    // Update display
+    updateSubwayArrivals(filtered, 'subwayArrivals');
+}
+
+// Toggle a bus route filter
+function toggleBusRoute(route) {
+    if (activeBusRoutes.has(route)) {
+        // Don't allow turning off all routes
+        if (activeBusRoutes.size > 1) {
+            activeBusRoutes.delete(route);
+        }
+    } else {
+        activeBusRoutes.add(route);
+    }
+    saveFilterPreferences();
+    updateFilterBadgeUI();
+    // Re-render with current data
+    if (lastBusData) {
+        renderFilteredBusArrivals(lastBusData);
+    }
+}
+
+// Combine and filter bus arrivals
+function renderFilteredBusArrivals(busData) {
+    lastBusData = busData;
+
+    // Combine arrivals from both routes
+    const allArrivals = [
+        ...(busData.b41 || []).map(a => ({ ...a, busRoute: 'B41' })),
+        ...(busData.b49 || []).map(a => ({ ...a, busRoute: 'B49' }))
+    ];
+
+    // Filter by active routes
+    const filtered = allArrivals.filter(a => activeBusRoutes.has(a.busRoute));
+
+    // Sort by minutes
+    filtered.sort((a, b) => a.minutes - b.minutes);
+
+    // Update display
+    updateBusArrivals('busArrivals', filtered);
+}
+
 // Format minutes for display
 function formatMinutes(minutes) {
     if (minutes === 0) {
@@ -202,6 +334,10 @@ function createArrivalItem(arrival, isSubway = false) {
     if (isSubway) {
         const badgeClass = getSubwayBadgeClass(route);
         routeDisplay = `<span class="route-badge ${badgeClass}">${route}</span>`;
+        // Show station for subway arrivals
+        if (arrival.station) {
+            serviceInfo = `<div class="arrival-type">${arrival.station}</div>`;
+        }
     } else {
         routeDisplay = `<div class="arrival-route">${route}</div>`;
     }
@@ -274,13 +410,11 @@ async function fetchArrivals(retryCount = 0) {
             console.warn('Partial data received:', data.warnings);
         }
 
-        // Update subway arrivals (even if empty)
-        updateSubwayArrivals(data.subway?.churchAve || [], 'subwayArrivals');
-        updateSubwayArrivals(data.subway?.winthrop || [], 'winthropArrivals');
+        // Update subway arrivals with filtering
+        renderFilteredSubwayArrivals(data.subway || {});
 
-        // Update bus arrivals (even if empty)
-        updateBusArrivals('b41Arrivals', data.buses?.b41 || []);
-        updateBusArrivals('b49Arrivals', data.buses?.b49 || []);
+        // Update bus arrivals with filtering
+        renderFilteredBusArrivals(data.buses || {});
 
         // Show warnings if any services failed
         if (data.warnings && data.warnings.length > 0) {
@@ -317,12 +451,14 @@ async function fetchArrivals(retryCount = 0) {
 
 // Show loading state
 function showLoadingState() {
-    const containers = ['subwayArrivals', 'winthropArrivals', 'b41Arrivals', 'b49Arrivals'];
+    const containers = ['subwayArrivals', 'busArrivals'];
     containers.forEach(id => {
         const container = document.getElementById(id);
-        container.innerHTML = '<div class="loading">Loading...</div>';
+        if (container) {
+            container.innerHTML = '<div class="loading">Loading...</div>';
+        }
     });
-    
+
     const lastUpdated = document.getElementById('lastUpdated');
     lastUpdated.textContent = 'Connecting...';
     lastUpdated.className = 'last-updated loading';
@@ -330,16 +466,18 @@ function showLoadingState() {
 
 // Show error state with helpful message
 function showErrorState(message) {
-    const containers = ['subwayArrivals', 'winthropArrivals', 'b41Arrivals', 'b49Arrivals'];
+    const containers = ['subwayArrivals', 'busArrivals'];
     containers.forEach(id => {
         const container = document.getElementById(id);
-        container.innerHTML = `
-            <div class="error">
-                <div class="error-icon">⚠️</div>
-                <div class="error-message">${message}</div>
-                <div class="error-hint">Click refresh to try again</div>
-            </div>
-        `;
+        if (container) {
+            container.innerHTML = `
+                <div class="error">
+                    <div class="error-icon">⚠️</div>
+                    <div class="error-message">${message}</div>
+                    <div class="error-hint">Click refresh to try again</div>
+                </div>
+            `;
+        }
     });
     
     const lastUpdated = document.getElementById('lastUpdated');
@@ -385,6 +523,21 @@ document.getElementById('refreshBtn').addEventListener('click', () => {
         btn.disabled = false;
     });
 });
+
+// Set up filter badge click handlers
+document.querySelectorAll('.filter-badge').forEach(badge => {
+    badge.addEventListener('click', () => {
+        const route = badge.dataset.route;
+        if (badge.classList.contains('bus-filter')) {
+            toggleBusRoute(route);
+        } else {
+            toggleSubwayRoute(route);
+        }
+    });
+});
+
+// Load filter preferences
+loadFilterPreferences();
 
 // Initial fetch with loading state
 showLoadingState();

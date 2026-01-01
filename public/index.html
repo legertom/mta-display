@@ -15,13 +15,15 @@
 
         <main>
             <div class="sections-grid">
-                <!-- Subway Section - Church Ave -->
-                <section class="arrival-section">
+                <!-- Unified Subway Section -->
+                <section class="arrival-section subway-section-full">
                     <div class="section-header">
-                        <h2>Subway - Church Ave</h2>
-                        <div class="header-badges">
-                            <span class="route-badge header-badge subway-b">B</span>
-                            <span class="route-badge header-badge subway-q">Q</span>
+                        <h2>Subway</h2>
+                        <div class="header-badges filter-badges">
+                            <button class="route-badge header-badge subway-b filter-badge active" data-route="B" title="Toggle B train">B</button>
+                            <button class="route-badge header-badge subway-q filter-badge active" data-route="Q" title="Toggle Q train">Q</button>
+                            <button class="route-badge header-badge subway-2 filter-badge active" data-route="2" title="Toggle 2 train">2</button>
+                            <button class="route-badge header-badge subway-5 filter-badge active" data-route="5" title="Toggle 5 train">5</button>
                         </div>
                     </div>
                     <div class="route-info">
@@ -32,43 +34,16 @@
                     </div>
                 </section>
 
-                <!-- Subway Section - Winthrop -->
-                <section class="arrival-section">
+                <!-- Unified Bus Section -->
+                <section class="arrival-section bus-section-full">
                     <div class="section-header">
-                        <h2>Subway - Winthrop St</h2>
-                        <div class="header-badges">
-                            <span class="route-badge header-badge subway-2">2</span>
-                            <span class="route-badge header-badge subway-5">5</span>
+                        <h2>Bus</h2>
+                        <div class="header-badges filter-badges">
+                            <button class="route-badge header-badge bus filter-badge bus-filter active" data-route="B41" title="Toggle B41">B41</button>
+                            <button class="route-badge header-badge bus filter-badge bus-filter active" data-route="B49" title="Toggle B49">B49</button>
                         </div>
                     </div>
-                    <div class="route-info">
-                        <span class="direction">Manhattan-bound</span>
-                    </div>
-                    <div class="arrivals" id="winthropArrivals">
-                        <div class="loading">Loading subway data...</div>
-                    </div>
-                </section>
-
-                <!-- B41 Bus Section -->
-                <section class="arrival-section">
-                    <h2>B41 Bus</h2>
-                    <div class="route-info">
-                        <span class="route-badge bus">B41</span>
-                        <span class="direction">To Downtown Brooklyn Cadman Plaza</span>
-                    </div>
-                    <div class="arrivals" id="b41Arrivals">
-                        <div class="loading">Loading bus data...</div>
-                    </div>
-                </section>
-
-                <!-- B49 Bus Section -->
-                <section class="arrival-section">
-                    <h2>B49 Bus - Rogers & Lenox Road</h2>
-                    <div class="route-info">
-                        <span class="route-badge bus">B49</span>
-                        <span class="direction">To Bed Stuy Fulton St</span>
-                    </div>
-                    <div class="arrivals" id="b49Arrivals">
+                    <div class="arrivals" id="busArrivals">
                         <div class="loading">Loading bus data...</div>
                     </div>
                 </section>
