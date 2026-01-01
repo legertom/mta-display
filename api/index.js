@@ -2,14 +2,11 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const gtfs = require('gtfs-realtime-bindings');
-require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
 
 // MTA API Configuration
 // Note: Subway feeds don't require an API key, but Bus Time API does
@@ -221,7 +218,7 @@ async function fetchBusData(routeId, stopId, direction) {
 }
 
 // API endpoint to get all arrival data
-app.get('/api/arrivals', async (req, res) => {
+app.get('/arrivals', async (req, res) => {
   try {
     // Fetch subway data
     const subwayArrivals = await fetchSubwayData();
@@ -269,7 +266,7 @@ app.get('/api/arrivals', async (req, res) => {
 });
 
 // Endpoint to search for stop IDs (helper endpoint)
-app.get('/api/search-stops', async (req, res) => {
+app.get('/search-stops', async (req, res) => {
   const query = req.query.q;
   if (!query) {
     return res.status(400).json({ error: 'Query parameter required' });
@@ -298,11 +295,6 @@ app.get('/api/search-stops', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`MTA Display server running on http://localhost:${PORT}`);
-  if (!BUS_TIME_API_KEY) {
-    console.warn('⚠️  WARNING: BUS_TIME_API_KEY not configured. Bus data will not work until you set it in .env file');
-  }
-  console.log('✅ Subway feeds configured (no API key needed)');
-});
+// Export the Express app as a serverless function for Vercel
+module.exports = app;
 
