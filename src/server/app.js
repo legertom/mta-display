@@ -9,7 +9,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../../public')));
-app.use('/js', express.static(path.join(__dirname, '../client')));
+// app.use('/js', express.static(path.join(__dirname, '../client'))); // Removed: client files moved to public/js
 
 // Routes
 // We could move these to a separate routes file if it grows, 
