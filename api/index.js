@@ -784,8 +784,10 @@ async function fetchBusData(routeId, stopId, direction) {
 app.get('/api/arrivals', async (req, res) => {
   const errors = [];
   const result = {
-    subway: { churchAve: [], winthrop: [], timesSquare: [], timesSquareMap: {} },
+    subway: { churchAve: [], winthrop: [] },
     buses: { b41: [], b49: [] },
+    timesSquare: [],
+    timesSquareMap: {},
     timestamp: new Date().toISOString(),
     errors: []
   };
@@ -822,7 +824,7 @@ app.get('/api/arrivals', async (req, res) => {
 
     try {
       const timesSquareData = await fetchTimesSquareData();
-      result.subway.timesSquare = timesSquareData.arrivals;
+      result.timesSquare = timesSquareData.arrivals;
       // Convert Map to object for JSON serialization
       // Convert Date objects to ISO strings for JSON
       const mapObj = {};
@@ -835,7 +837,7 @@ app.get('/api/arrivals', async (req, res) => {
           route: value.route
         };
       });
-      result.subway.timesSquareMap = mapObj;
+      result.timesSquareMap = mapObj;
       console.log('Times Square map created with', Object.keys(mapObj).length, 'entries');
     } catch (error) {
       console.error('Error fetching Times Square subway data:', error.message);
@@ -896,7 +898,8 @@ app.get('/api/arrivals', async (req, res) => {
     // Only return 500 if ALL sources failed
     const hasAnyData = result.subway.churchAve.length > 0 ||
       result.subway.winthrop.length > 0 ||
-      (result.subway.timesSquare && result.subway.timesSquare.length > 0) ||
+      result.subway.winthrop.length > 0 ||
+      (result.timesSquare && result.timesSquare.length > 0) ||
       result.buses.b41.length > 0 ||
       result.buses.b49.length > 0;
 
