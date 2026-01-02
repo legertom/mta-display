@@ -4,10 +4,6 @@
     {
       "src": "api/index.js",
       "use": "@vercel/node"
-    },
-    {
-      "src": "public/**",
-      "use": "@vercel/static"
     }
   ],
   "routes": [
@@ -26,9 +22,6 @@
     {
       "src": "^/$",
       "dest": "/public/index.html"
-    },
-    {
-      "handle": "filesystem"
     }
   ]
 }
