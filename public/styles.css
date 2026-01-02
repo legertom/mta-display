@@ -710,4 +710,51 @@ footer {
 
 .container {
     animation: antiburn 300s ease-in-out infinite;
+}/* ============================================
+   WEATHER WIDGET - Header Integration
+   ============================================ */
+.weather-widget {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    color: var(--text-secondary);
+    font-size: var(--font-small);
+    font-weight: 500;
+    margin-right: var(--space-lg);
+    padding-right: var(--space-lg);
+    border-right: 1px solid var(--bg-card);
+}
+
+.weather-icon {
+    font-size: 1.5rem;
+    line-height: 1;
+}
+
+.weather-temp {
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: var(--font-medium);
+}
+
+.weather-feels-like {
+    color: var(--text-muted);
+    font-size: var(--font-micro);
+    display: flex;
+    align-items: center;
+}
+
+.weather-feels-like::before {
+    content: 'Feels ';
+    margin-right: 4px;
+}
+
+/* Adjust header layout to accommodate weather */
+header {
+    gap: var(--space-md);
+}
+
+@media (max-width: 600px) {
+    .weather-widget {
+        display: none;
+    }
 }

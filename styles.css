@@ -75,6 +75,7 @@ a[x-apple-data-detectors] {
     /* Touch Targets */
     --touch-min: 48px;
     --badge-size: 56px;
+    --bus-badge-ratio: 1.25;
 }
 
 /* ============================================
@@ -333,16 +334,16 @@ main {
     background: var(--mta-blue);
     border-radius: 8px;
     width: auto;
-    min-width: 70px;
+    min-width: calc(var(--badge-size) * var(--bus-badge-ratio));
     padding: var(--space-sm) var(--space-md);
     font-size: 1.1rem;
 }
 
 .filter-badge.bus.header-badge {
     width: auto;
-    min-width: 50px;
+    min-width: calc(40px * var(--bus-badge-ratio));
     height: 40px;
-    padding: var(--space-sm) var(--space-md);
+    padding: var(--space-sm) var(--space-sm);
     font-size: 0.9rem;
     border-radius: 6px;
 }
