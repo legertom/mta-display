@@ -21,4 +21,12 @@ module.exports = {
         SUBWAY: ['B', 'Q', '2', '5'],
         BUS: ['B41', 'B49'],
     },
+    // Map route to the "City" destination stop we care about for 'Times Square' lookup
+    DESTINATION_STOPS: {
+        'Q': 'R16N', // Times Sq - 42 St
+        'N': 'R16N',
+        '2': '127N', // Times Sq - 42 St
+        '3': '127N',
+        '5': '127N', // (Late nights/Weekends often shares track)
+    },
 };
