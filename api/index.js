@@ -88,7 +88,7 @@ function estimateTravelTime(route, isLocal) {
 async function fetchSubwayFeed(feedUrl, targetRoute, stopId, stopPrefix, secondStopId = null, secondStopPrefix = null) {
   const arrivals = [];
   const vehiclePositions = new Map(); // Map trip IDs to vehicle positions for occupancy data
-  
+
   try {
     // No API key needed for these public feeds
     const response = await axios.get(feedUrl, {
@@ -117,28 +117,28 @@ async function fetchSubwayFeed(feedUrl, targetRoute, stopId, stopPrefix, secondS
         const routeId = entity.tripUpdate.trip.routeId;
         // Try to get tripId from multiple possible locations
         let tripId = entity.tripUpdate.trip.tripId;
-        
+
         // If tripId is missing, try to use entity.id as fallback
         if (!tripId && entity.id) {
           tripId = entity.id;
         }
-        
+
         // Also check if tripId is in a different format or location
         if (!tripId && entity.tripUpdate.trip) {
           // Sometimes tripId might be in startDate or other fields
-          tripId = entity.tripUpdate.trip.startDate || 
-                   entity.tripUpdate.trip.startTime ||
-                   null;
+          tripId = entity.tripUpdate.trip.startDate ||
+            entity.tripUpdate.trip.startTime ||
+            null;
         }
-        
+
         if (routeId === targetRoute) {
           // Get occupancy data for this trip if available
           const vehicleData = vehiclePositions.get(tripId);
-          
+
           // Look for the primary stop (Church Ave/Winthrop) and optionally the second stop (Times Square)
           let primaryStopArrival = null;
           let secondStopArrival = null;
-          
+
           // Collect all stop IDs in this trip for local/express detection
           const allStopIds = entity.tripUpdate.stopTimeUpdate.map(su => su.stopId || '');
           const isLocalService = detectLocalService(allStopIds, targetRoute);
@@ -146,7 +146,7 @@ async function fetchSubwayFeed(feedUrl, targetRoute, stopId, stopPrefix, secondS
           for (const stopUpdate of entity.tripUpdate.stopTimeUpdate) {
             const currentStopId = stopUpdate.stopId || '';
             const arrivalTime = stopUpdate.arrival?.time || stopUpdate.departure?.time;
-            
+
             // Check if this is the primary stop
             if (currentStopId === stopId || (currentStopId.includes(stopPrefix) && currentStopId.includes('N'))) {
               if (arrivalTime) {
@@ -160,16 +160,16 @@ async function fetchSubwayFeed(feedUrl, targetRoute, stopId, stopPrefix, secondS
                 }
               }
             }
-            
+
             // Check if this is the second stop (Times Square) if specified
             // Try multiple matching strategies
             if (secondStopId && secondStopPrefix && primaryStopArrival) {
-              const matchesSecondStop = 
-                currentStopId === secondStopId || 
+              const matchesSecondStop =
+                currentStopId === secondStopId ||
                 currentStopId === secondStopId.replace('N', '') ||
                 (currentStopId.includes(secondStopPrefix) && (currentStopId.includes('N') || currentStopId.endsWith(secondStopPrefix))) ||
                 currentStopId.startsWith(secondStopPrefix);
-              
+
               if (matchesSecondStop) {
                 if (arrivalTime) {
                   const currentTime = Math.floor(Date.now() / 1000);
@@ -186,12 +186,12 @@ async function fetchSubwayFeed(feedUrl, targetRoute, stopId, stopPrefix, secondS
               }
             }
           }
-          
+
           // Debug output (only log if needed for troubleshooting)
           // if (shouldDebug && primaryStopArrival && !secondStopArrival) {
           //   console.log(`Route ${targetRoute} trip ${tripId}: Found primary stop but not Times Square. All stops in trip:`, debugStops.slice(0, 20));
           // }
-          
+
           // If we found the primary stop, create an arrival entry
           if (primaryStopArrival && primaryStopArrival.minutes < 60) {
             const arrival = {
@@ -200,9 +200,9 @@ async function fetchSubwayFeed(feedUrl, targetRoute, stopId, stopPrefix, secondS
               arrivalTime: new Date(primaryStopArrival.time * 1000),
               tripId: tripId || null // Include tripId to track this specific train
             };
-            
+
             // Note: tripId may be missing, will use entity.id as fallback or estimated times
-            
+
             // If we also found the second stop (Times Square), include that data
             if (secondStopArrival) {
               arrival.timesSquareArrival = {
@@ -225,13 +225,13 @@ async function fetchSubwayFeed(feedUrl, targetRoute, stopId, stopPrefix, secondS
                 };
               }
             }
-            
+
             // Add occupancy/crowding data if available
             if (vehicleData) {
               arrival.occupancyStatus = vehicleData.occupancyStatus;
               arrival.occupancyPercentage = vehicleData.occupancyPercentage;
             }
-            
+
             arrivals.push(arrival);
           }
         }
@@ -251,11 +251,11 @@ async function fetchSubwayFeed(feedUrl, targetRoute, stopId, stopPrefix, secondS
 // Helper function to fetch subway data for both B and Q trains at Church Ave
 async function fetchSubwayData() {
   const allArrivals = [];
-  
+
   // Fetch B train data from BDFM feed
   const bArrivals = await fetchSubwayFeed(B_TRAIN_FEED_URL, 'B', CHURCH_AVE_STOP_ID, 'D28');
   allArrivals.push(...bArrivals);
-  
+
   // Fetch Q train data from NQRW feed, also look for Times Square in the same trip
   const qArrivals = await fetchSubwayFeed(Q_TRAIN_FEED_URL, 'Q', CHURCH_AVE_STOP_ID, 'D28', TIMES_SQ_Q_STOP_ID, 'R16');
   allArrivals.push(...qArrivals);
@@ -269,11 +269,11 @@ async function fetchSubwayData() {
 // Helper function to fetch subway data for 2/5 trains at Winthrop St
 async function fetchWinthropData() {
   const allArrivals = [];
-  
+
   // Fetch 2 train data from IRT feed, also look for Times Square in the same trip
   const train2Arrivals = await fetchSubwayFeed(IRT_FEED_URL, '2', WINTHROP_ST_STOP_ID, '241', TIMES_SQ_2_STOP_ID, '127');
   allArrivals.push(...train2Arrivals);
-  
+
   // Fetch 5 train data from IRT feed, also look for Times Square in the same trip
   const train5Arrivals = await fetchSubwayFeed(IRT_FEED_URL, '5', WINTHROP_ST_STOP_ID, '241', TIMES_SQ_5_STOP_ID, '127');
   allArrivals.push(...train5Arrivals);
@@ -289,7 +289,7 @@ async function fetchWinthropData() {
 async function fetchTimesSquareData() {
   const allArrivals = [];
   const tripIdToTimesSquare = new Map(); // Map tripId to Times Square arrival info
-  
+
   // Fetch Q train data at Times Square from NQRW feed
   const qArrivals = await fetchSubwayFeed(Q_TRAIN_FEED_URL, 'Q', TIMES_SQ_Q_STOP_ID, 'R16');
   allArrivals.push(...qArrivals);
@@ -303,7 +303,7 @@ async function fetchTimesSquareData() {
       });
     }
   });
-  
+
   // Fetch 2 train data at Times Square from IRT feed
   const train2Arrivals = await fetchSubwayFeed(IRT_FEED_URL, '2', TIMES_SQ_2_STOP_ID, '127');
   allArrivals.push(...train2Arrivals);
@@ -316,7 +316,7 @@ async function fetchTimesSquareData() {
       });
     }
   });
-  
+
   // Fetch 5 train data at Times Square from IRT feed
   const train5Arrivals = await fetchSubwayFeed(IRT_FEED_URL, '5', TIMES_SQ_5_STOP_ID, '127');
   allArrivals.push(...train5Arrivals);
@@ -344,7 +344,7 @@ async function fetchBusVehiclePositionsFromGTFS(routeId) {
   if (!BUS_TIME_API_KEY) {
     return { byTripId: new Map(), byVehicleId: new Map() };
   }
-  
+
   try {
     // Fetch GTFS-Realtime VehiclePositions feed for buses
     const response = await axios.get(BUS_GTFS_REALTIME_VEHICLES_URL, {
@@ -358,7 +358,7 @@ async function fetchBusVehiclePositionsFromGTFS(routeId) {
     const feed = gtfs.transit_realtime.FeedMessage.decode(response.data);
     const vehicleMapByTripId = new Map();
     const vehicleMapByVehicleId = new Map();
-    
+
     // Extract route ID variants to match
     const routeIdVariants = [
       routeId,
@@ -366,25 +366,25 @@ async function fetchBusVehiclePositionsFromGTFS(routeId) {
       `MTA NYCT_${routeId}`,
       routeId.replace('_', '')
     ];
-    
+
     for (const entity of feed.entity) {
       if (entity.vehicle && entity.vehicle.trip) {
         const vehicleRouteId = entity.vehicle.trip.routeId || '';
         const tripId = entity.vehicle.trip.tripId;
         const vehicleId = entity.vehicle.vehicle?.id;
-        
+
         // Check if this vehicle matches our route
-        const matchesRoute = routeIdVariants.some(variant => 
-          vehicleRouteId.includes(variant) || 
+        const matchesRoute = routeIdVariants.some(variant =>
+          vehicleRouteId.includes(variant) ||
           vehicleRouteId === variant
         );
-        
+
         if (matchesRoute && entity.vehicle.occupancyStatus !== undefined) {
           const occupancyData = {
             occupancyStatus: entity.vehicle.occupancyStatus,
             occupancyPercentage: entity.vehicle.occupancyPercentage
           };
-          
+
           // Store by both tripId and vehicleId for flexible matching
           if (tripId) {
             vehicleMapByTripId.set(tripId, occupancyData);
@@ -395,7 +395,7 @@ async function fetchBusVehiclePositionsFromGTFS(routeId) {
         }
       }
     }
-    
+
     return { byTripId: vehicleMapByTripId, byVehicleId: vehicleMapByVehicleId };
   } catch (error) {
     console.warn(`Warning: Could not fetch GTFS-Realtime vehicle positions for ${routeId}:`, error.message);
@@ -408,13 +408,13 @@ async function fetchBusVehiclePositions(routeId) {
   if (!BUS_TIME_API_KEY) {
     return { byTripId: new Map(), byVehicleId: new Map() };
   }
-  
+
   // First try GTFS-Realtime (more reliable for occupancy data)
   const gtfsMaps = await fetchBusVehiclePositionsFromGTFS(routeId);
   if (gtfsMaps.byTripId.size > 0 || gtfsMaps.byVehicleId.size > 0) {
     return gtfsMaps;
   }
-  
+
   // Fallback to REST API
   try {
     // Fetch vehicle positions for the route
@@ -426,11 +426,11 @@ async function fetchBusVehiclePositions(routeId) {
       },
       timeout: 10000 // 10 second timeout
     });
-    
+
     const vehicleMapByTripId = new Map();
     const vehicleMapByVehicleId = new Map();
     const vehicles = response.data?.data?.list || [];
-    
+
     for (const vehicle of vehicles) {
       const tripId = vehicle.tripId;
       const vehicleId = vehicle.vehicleId;
@@ -439,7 +439,7 @@ async function fetchBusVehiclePositions(routeId) {
         occupancyStatus: vehicle.occupancyStatus,
         occupancyPercentage: vehicle.occupancyPercentage
       };
-      
+
       if (tripId) {
         vehicleMapByTripId.set(tripId, occupancyData);
       }
@@ -447,7 +447,7 @@ async function fetchBusVehiclePositions(routeId) {
         vehicleMapByVehicleId.set(vehicleId, occupancyData);
       }
     }
-    
+
     return { byTripId: vehicleMapByTripId, byVehicleId: vehicleMapByVehicleId };
   } catch (error) {
     // Vehicle positions endpoint might not be available or might fail
@@ -462,7 +462,7 @@ async function fetchBusDataSIRI(routeId, stopId) {
   if (!BUS_TIME_API_KEY) {
     return { arrivals: [], vehicleMap: new Map() };
   }
-  
+
   try {
     // Use SIRI stop monitoring for real-time predicted arrival times
     const url = `https://bustime.mta.info/api/siri/stop-monitoring.json`;
@@ -474,49 +474,49 @@ async function fetchBusDataSIRI(routeId, stopId) {
       },
       timeout: 10000
     });
-    
+
     const arrivals = [];
     const vehicleMap = new Map();
-    
+
     const stopMonitoringDeliveries = response.data?.Siri?.ServiceDelivery?.StopMonitoringDelivery || [];
-    
+
     for (const delivery of stopMonitoringDeliveries) {
       const monitoredStopVisits = delivery.MonitoredStopVisit || [];
-      
+
       for (const visit of monitoredStopVisits) {
         const call = visit.MonitoredVehicleJourney?.MonitoredCall;
         const journey = visit.MonitoredVehicleJourney;
-        
+
         if (!call || !journey) continue;
-        
+
         // Get predicted or expected arrival time
         const arrivalTime = call.ExpectedArrivalTime || call.AimedArrivalTime;
         if (!arrivalTime) continue;
-        
+
         // Parse ISO 8601 time string
         const arrivalTimestamp = new Date(arrivalTime).getTime();
         const minutesUntil = Math.round((arrivalTimestamp - Date.now()) / 60000);
-        
+
         if (minutesUntil >= -2 && minutesUntil < 120) {
           const tripId = journey.FramedVehicleJourneyRef?.DatedVehicleJourneyRef;
           const tripHeadsign = journey.DestinationName || '';
-          const isLimited = tripHeadsign.toUpperCase().includes('LTD') || 
-                           tripHeadsign.toUpperCase().includes('LIMITED');
-          
+          const isLimited = tripHeadsign.toUpperCase().includes('LTD') ||
+            tripHeadsign.toUpperCase().includes('LIMITED');
+
           // Get passenger count and capacity from Extensions.Capacities
           const extensions = call.Extensions || {};
           const capacities = extensions.Capacities || {};
           const passengerCount = capacities.EstimatedPassengerCount;
           const passengerCapacity = capacities.EstimatedPassengerCapacity;
-          
+
           // Calculate percentage full if we have both count and capacity
           let occupancyPercentage = null;
-          if (passengerCount !== undefined && passengerCount !== null && 
-              passengerCapacity !== undefined && passengerCapacity !== null && 
-              passengerCapacity > 0) {
+          if (passengerCount !== undefined && passengerCount !== null &&
+            passengerCapacity !== undefined && passengerCapacity !== null &&
+            passengerCapacity > 0) {
             occupancyPercentage = Math.round((passengerCount / passengerCapacity) * 100);
           }
-          
+
           const arrival = {
             route: journey.PublishedLineName || routeId,
             minutes: Math.max(0, minutesUntil),
@@ -525,7 +525,7 @@ async function fetchBusDataSIRI(routeId, stopId) {
             arrivalTime: new Date(arrivalTimestamp),
             tripId: tripId
           };
-          
+
           // Add occupancy and passenger data
           if (journey.Occupancy) {
             arrival.occupancyStatus = journey.Occupancy;
@@ -542,9 +542,9 @@ async function fetchBusDataSIRI(routeId, stopId) {
           if (capacities.EstimatedPassengerLoadFactor) {
             arrival.loadFactor = capacities.EstimatedPassengerLoadFactor;
           }
-          
+
           arrivals.push(arrival);
-          
+
           // Also store in vehicleMap for reference
           if (tripId) {
             vehicleMap.set(tripId, {
@@ -555,7 +555,7 @@ async function fetchBusDataSIRI(routeId, stopId) {
         }
       }
     }
-    
+
     return { arrivals, vehicleMap };
   } catch (error) {
     console.warn(`SIRI stop monitoring failed for ${routeId} at ${stopId}:`, error.message);
@@ -569,11 +569,11 @@ async function fetchBusData(routeId, stopId, direction) {
     console.warn('⚠️  BUS_TIME_API_KEY not set - skipping bus data fetch');
     return [];
   }
-  
+
   try {
     // Try SIRI stop monitoring first for real-time predictions
     const siriData = await fetchBusDataSIRI(routeId, stopId);
-    
+
     // If SIRI returns data, use it (it has real-time predictions)
     if (siriData.arrivals.length > 0) {
       // Filter by direction if needed (for B49)
@@ -581,19 +581,19 @@ async function fetchBusData(routeId, stopId, direction) {
         return siriData.arrivals.filter(arrival => {
           const headsignLower = arrival.headsign.toLowerCase();
           return headsignLower.includes('fulton') ||
-                 headsignLower.includes('bed stuy') ||
-                 headsignLower.includes('bedford-stuyvesant') ||
-                 headsignLower.includes('bed-stuy');
+            headsignLower.includes('bed stuy') ||
+            headsignLower.includes('bedford-stuyvesant') ||
+            headsignLower.includes('bed-stuy');
         });
       }
-      
+
       return siriData.arrivals;
     }
-    
+
     // Fallback to regular arrivals endpoint if SIRI doesn't return data
     // Fetch vehicle positions for occupancy data (if available)
     const vehiclePositions = await fetchBusVehiclePositions(`MTA NYCT_${routeId}`);
-    
+
     // Bus Time API endpoint for arrivals with time window parameters
     const url = `${BUS_TIME_BASE_URL}/arrivals-and-departures-for-stop/${stopId}.json`;
     const response = await axios.get(url, {
@@ -609,7 +609,7 @@ async function fetchBusData(routeId, stopId, direction) {
     const arrivals = [];
     // The API returns arrivals in data.arrivalsAndDepartures (not data.entry.arrivalsAndDepartures)
     const predictions = response.data?.data?.arrivalsAndDepartures || [];
-    
+
     // Try multiple route ID formats
     const routeIdVariants = [
       routeId,
@@ -621,30 +621,30 @@ async function fetchBusData(routeId, stopId, direction) {
     for (const prediction of predictions) {
       const predictionRouteId = prediction.routeId || '';
       const routeShortName = prediction.routeShortName || '';
-      
+
       // Check if this prediction matches any of our route ID variants
-      const matchesRoute = routeIdVariants.some(variant => 
-        predictionRouteId.includes(variant) || 
+      const matchesRoute = routeIdVariants.some(variant =>
+        predictionRouteId.includes(variant) ||
         routeShortName === variant.replace('MTA NYCT_', '') ||
         routeShortName === variant
       );
-      
+
       if (!matchesRoute) {
         continue;
       }
 
       const tripHeadsign = prediction.tripHeadsign || '';
-      
+
       // Detect limited service - check multiple indicators
-      const isLimited = 
-        routeShortName.includes('Limited') || 
+      const isLimited =
+        routeShortName.includes('Limited') ||
         routeShortName.includes('LTD') ||
         tripHeadsign.includes('Limited') ||
         tripHeadsign.includes('LTD') ||
         prediction.tripId?.includes('_LTD') ||
         prediction.tripId?.includes('_Limited') ||
         prediction.routeLongName?.includes('Limited');
-      
+
       // Check direction if specified (more flexible matching)
       if (direction) {
         const directionLower = direction.toLowerCase();
@@ -656,7 +656,7 @@ async function fetchBusData(routeId, stopId, direction) {
           'cadman plaza': ['cadman', 'downtown'],
           'fulton': ['fulton', 'bed stuy', 'bedford-stuyvesant']
         };
-        
+
         let matchesDirection = headsignLower.includes(directionLower);
         if (!matchesDirection) {
           // Try keyword matching
@@ -667,7 +667,7 @@ async function fetchBusData(routeId, stopId, direction) {
             }
           }
         }
-        
+
         if (!matchesDirection) {
           continue;
         }
@@ -687,11 +687,11 @@ async function fetchBusData(routeId, stopId, direction) {
             headsign: tripHeadsign,
             arrivalTime: new Date(predictedArrivalTime)
           };
-          
+
           // Get occupancy data - try multiple sources
           const tripId = prediction.tripId;
           const vehicleId = prediction.vehicleId;
-          
+
           // First, check if occupancy data is directly in the prediction
           // The MTA Bus Time API may include occupancy data directly in the arrival prediction
           if (prediction.loadFactor !== undefined && prediction.loadFactor !== null) {
@@ -703,7 +703,7 @@ async function fetchBusData(routeId, stopId, direction) {
           if (prediction.occupancyPercentage !== undefined && prediction.occupancyPercentage !== null) {
             arrival.occupancyPercentage = prediction.occupancyPercentage;
           }
-          
+
           // Also check nested structures - sometimes occupancy is in vehicle reference
           if (prediction.vehicleId && response.data?.data?.references?.vehicles) {
             const vehicleRef = response.data.data.references.vehicles.find(v => v.id === prediction.vehicleId);
@@ -719,11 +719,11 @@ async function fetchBusData(routeId, stopId, direction) {
               }
             }
           }
-          
+
           // Try to match with vehicle positions
           // Handle both new format (object with byTripId/byVehicleId) and old format (Map)
           let vehicleData = null;
-          
+
           if (vehiclePositions && typeof vehiclePositions === 'object' && !(vehiclePositions instanceof Map)) {
             // New format: object with byTripId and byVehicleId maps
             // Try vehicleId first (more reliable for matching)
@@ -740,7 +740,7 @@ async function fetchBusData(routeId, stopId, direction) {
               vehicleData = vehiclePositions.get(tripId);
             }
           }
-          
+
           // Apply vehicle data if found
           if (vehicleData) {
             // Only use vehicle position data if we don't already have it from prediction
@@ -754,7 +754,7 @@ async function fetchBusData(routeId, stopId, direction) {
               arrival.occupancyPercentage = vehicleData.occupancyPercentage;
             }
           }
-          
+
           arrivals.push(arrival);
         }
       }
@@ -793,7 +793,13 @@ app.get('/api/arrivals', async (req, res) => {
   try {
     // Fetch subway data (non-blocking - if it fails, continue with buses)
     try {
-      result.subway.churchAve = await fetchSubwayData();
+      const churchAveRaw = await fetchSubwayData();
+      // Add station name and transform destMinutes for frontend compatibility
+      result.subway.churchAve = churchAveRaw.map(a => ({
+        ...a,
+        station: 'Church Ave',
+        destMinutes: a.timesSquareArrival?.minutes || null
+      }));
     } catch (error) {
       console.error('Error fetching Church Ave subway data:', error.message);
       errors.push('Church Ave subway data temporarily unavailable');
@@ -801,7 +807,13 @@ app.get('/api/arrivals', async (req, res) => {
     }
 
     try {
-      result.subway.winthrop = await fetchWinthropData();
+      const winthropRaw = await fetchWinthropData();
+      // Add station name and transform destMinutes for frontend compatibility
+      result.subway.winthrop = winthropRaw.map(a => ({
+        ...a,
+        station: 'Winthrop St',
+        destMinutes: a.timesSquareArrival?.minutes || null
+      }));
     } catch (error) {
       console.error('Error fetching Winthrop subway data:', error.message);
       errors.push('Winthrop subway data temporarily unavailable');
@@ -817,8 +829,8 @@ app.get('/api/arrivals', async (req, res) => {
       timesSquareData.tripIdMap.forEach((value, key) => {
         mapObj[key] = {
           minutes: value.minutes,
-          arrivalTime: value.arrivalTime instanceof Date 
-            ? value.arrivalTime.toISOString() 
+          arrivalTime: value.arrivalTime instanceof Date
+            ? value.arrivalTime.toISOString()
             : value.arrivalTime,
           route: value.route
         };
@@ -866,13 +878,13 @@ app.get('/api/arrivals', async (req, res) => {
       // For B49 to Bed Stuy Fulton St at Rogers and Lenox Road
       // Try with direction filter first
       let b49Arrivals = await fetchBusData('B49', B49_ROGERS_LENOX_STOP, 'Fulton');
-      
+
       // If no results with direction filter, try without it (some buses might not have clear direction in headsign)
       if (b49Arrivals.length === 0) {
         console.log('B49: No results with direction filter, trying without direction filter');
         b49Arrivals = await fetchBusData('B49', B49_ROGERS_LENOX_STOP, null);
       }
-      
+
       result.buses.b49 = b49Arrivals;
     } catch (error) {
       console.error('Error fetching B49 data:', error.message);
@@ -882,11 +894,11 @@ app.get('/api/arrivals', async (req, res) => {
 
     // Return partial results even if some sources failed
     // Only return 500 if ALL sources failed
-    const hasAnyData = result.subway.churchAve.length > 0 || 
-                       result.subway.winthrop.length > 0 ||
-                       (result.subway.timesSquare && result.subway.timesSquare.length > 0) ||
-                       result.buses.b41.length > 0 || 
-                       result.buses.b49.length > 0;
+    const hasAnyData = result.subway.churchAve.length > 0 ||
+      result.subway.winthrop.length > 0 ||
+      (result.subway.timesSquare && result.subway.timesSquare.length > 0) ||
+      result.buses.b41.length > 0 ||
+      result.buses.b49.length > 0;
 
     if (errors.length > 0) {
       result.warnings = errors;
@@ -915,14 +927,14 @@ app.get('/api/arrivals', async (req, res) => {
 app.get('/api/search-stops', async (req, res) => {
   const query = req.query.q;
   if (!query) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'Query parameter required',
       message: 'Please provide a search query using ?q=your_search_term'
     });
   }
 
   if (!BUS_TIME_API_KEY) {
-    return res.status(503).json({ 
+    return res.status(503).json({
       error: 'BUS_TIME_API_KEY not configured',
       message: 'Bus stop search requires API key configuration'
     });
@@ -945,17 +957,17 @@ app.get('/api/search-stops', async (req, res) => {
   } catch (error) {
     console.error('Error searching stops:', error.message);
     if (error.code === 'ECONNABORTED') {
-      res.status(504).json({ 
+      res.status(504).json({
         error: 'Request timeout',
         message: 'The search took too long. Please try again.'
       });
     } else if (error.response) {
-      res.status(error.response.status).json({ 
+      res.status(error.response.status).json({
         error: 'Search failed',
         message: error.response.data?.message || 'Unable to search stops at this time'
       });
     } else {
-      res.status(500).json({ 
+      res.status(500).json({
         error: 'Failed to search stops',
         message: 'An unexpected error occurred'
       });
@@ -1035,7 +1047,7 @@ app.get('/api/debug/bus', async (req, res) => {
         },
         timeout: 10000 // 10 second timeout
       });
-      
+
       const predictions = arrivalsResponse.data?.data?.arrivalsAndDepartures || [];
       const routePredictions = predictions.filter(p => {
         const routeShortName = p.routeShortName || '';
@@ -1112,13 +1124,13 @@ app.get('/api/debug/bus', async (req, res) => {
 app.get('*', (req, res) => {
   // Don't serve HTML for API routes
   if (req.path.startsWith('/api/')) {
-    return res.status(404).json({ 
+    return res.status(404).json({
       error: 'Not Found',
       message: `API endpoint ${req.path} does not exist`,
       availableEndpoints: ['/api/arrivals', '/api/search-stops', '/api/health']
     });
   }
-  
+
   // Serve index.html for all other routes (SPA routing)
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
