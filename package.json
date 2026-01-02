@@ -2,20 +2,35 @@
   "name": "mta-display",
   "version": "1.0.0",
   "description": "Web app to display NYC MTA real-time arrival times",
-  "main": "server.js",
+  "main": "src/server/index.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "node src/server/index.js",
+    "dev": "nodemon src/server/index.js",
+    "lint": "eslint .",
+    "test": "vitest"
   },
-  "keywords": ["mta", "nyc", "transit"],
+  "keywords": [
+    "mta",
+    "nyc",
+    "transit"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
     "axios": "^1.6.0",
+    "cors": "^2.8.5",
+    "cross-env": "^10.1.0",
+    "dotenv": "^16.6.1",
+    "express": "^4.18.2",
     "gtfs-realtime-bindings": "^1.0.0",
-    "dotenv": "^16.3.1"
+    "zod": "^4.3.4"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "eslint": "^9.39.2",
+    "globals": "^17.0.0",
+    "nodemon": "^3.1.11",
+    "prettier": "^3.7.4",
+    "vitest": "^3.2.4"
   }
 }
-

@@ -1,14 +1,37 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
     <meta name="format-detection" content="telephone=no">
     <meta name="format-detection" content="address=no">
     <meta name="format-detection" content="date=no">
+
+    <!-- PWA / Kiosk Mode -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="MTA Display">
+    <meta name="theme-color" content="#0d0d0d">
+    <meta name="mobile-web-app-capable" content="yes">
+
     <title>MTA Arrival Times</title>
+
+    <!-- Fonts: Helvetica Neue fallback -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     <link rel="stylesheet" href="styles.css">
+
+    <style>
+        /* Font fallback chain */
+        body {
+            font-family: 'Helvetica Neue', 'Inter', Helvetica, Arial, sans-serif;
+        }
+    </style>
 </head>
+
 <body>
     <div class="container">
         <header>
@@ -26,10 +49,14 @@
                     <div class="section-header">
                         <h2>Subway</h2>
                         <div class="header-badges filter-badges">
-                            <button class="route-badge header-badge subway-b filter-badge active" data-route="B" title="Toggle B train">B</button>
-                            <button class="route-badge header-badge subway-q filter-badge active" data-route="Q" title="Toggle Q train">Q</button>
-                            <button class="route-badge header-badge subway-2 filter-badge active" data-route="2" title="Toggle 2 train">2</button>
-                            <button class="route-badge header-badge subway-5 filter-badge active" data-route="5" title="Toggle 5 train">5</button>
+                            <button class="route-badge header-badge subway-b filter-badge active" data-route="B"
+                                title="Toggle B train">B</button>
+                            <button class="route-badge header-badge subway-q filter-badge active" data-route="Q"
+                                title="Toggle Q train">Q</button>
+                            <button class="route-badge header-badge subway-2 filter-badge active" data-route="2"
+                                title="Toggle 2 train">2</button>
+                            <button class="route-badge header-badge subway-5 filter-badge active" data-route="5"
+                                title="Toggle 5 train">5</button>
                         </div>
                     </div>
                     <div class="route-info">
@@ -45,8 +72,10 @@
                     <div class="section-header">
                         <h2>Bus</h2>
                         <div class="header-badges filter-badges">
-                            <button class="route-badge header-badge bus filter-badge bus-filter active" data-route="B41" title="Toggle B41">B41</button>
-                            <button class="route-badge header-badge bus filter-badge bus-filter active" data-route="B49" title="Toggle B49">B49</button>
+                            <button class="route-badge header-badge bus filter-badge bus-filter active" data-route="B41"
+                                title="Toggle B41">B41</button>
+                            <button class="route-badge header-badge bus filter-badge bus-filter active" data-route="B49"
+                                title="Toggle B49">B49</button>
                         </div>
                     </div>
                     <div class="arrivals" id="busArrivals">
@@ -63,5 +92,5 @@
 
     <script src="app.js"></script>
 </body>
-</html>
 
+</html>

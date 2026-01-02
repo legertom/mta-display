@@ -1,3 +1,9 @@
+/* ============================================
+   MTA DISPLAY - SWISS DESIGN KIOSK MODE
+   International Typographic Style
+   Optimized for 11" iPad (1194x834)
+   ============================================ */
+
 * {
     margin: 0;
     padding: 0;
@@ -13,235 +19,325 @@ a[x-apple-data-detectors] {
     pointer-events: none;
 }
 
-.arrival-type,
-.arrival-item,
-.route-badge {
-    text-decoration: none !important;
+/* ============================================
+   SWISS DESIGN TOKENS
+   ============================================ */
+:root {
+    /* Dark Theme (Default - optimized for 24/7 kiosk) */
+    --bg-primary: #0d0d0d;
+    --bg-secondary: #1a1a1a;
+    --bg-card: #242424;
+
+    /* Typography Colors */
+    --text-primary: #ffffff;
+    --text-secondary: #888888;
+    --text-muted: #555555;
+
+    /* Accent - For "Arriving" state */
+    --accent-arriving: #00ff88;
+
+    /* Status Colors - Muted for Swiss aesthetic */
+    --status-low: #3d9970;
+    --status-medium: #ffdc00;
+    --status-high: #ff4136;
+
+    /* MTA Official Colors */
+    --mta-red: #ee352e;
+    --mta-green: #00933c;
+    --mta-purple: #b933ad;
+    --mta-blue: #0039a6;
+    --mta-orange: #ff6319;
+    --mta-lime: #6cbe45;
+    --mta-brown: #996633;
+    --mta-gray: #a7a9ac;
+    --mta-yellow: #fccc0a;
+
+    /* Swiss Typography Scale */
+    --font-hero: 4rem;
+    /* Arrival times */
+    --font-large: 2rem;
+    /* Section headers */
+    --font-medium: 1.25rem;
+    /* Station names */
+    --font-small: 0.875rem;
+    /* Metadata */
+    --font-micro: 0.75rem;
+    /* Timestamps */
+
+    /* Spacing - 8px grid */
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+    --space-2xl: 48px;
+
+    /* Touch Targets */
+    --touch-min: 48px;
+    --badge-size: 56px;
 }
 
+/* Light Mode (Day theme: 7am - 8pm) */
+:root.light-mode {
+    --bg-primary: #f5f5f5;
+    --bg-secondary: #ffffff;
+    --bg-card: #e8e8e8;
+    --text-primary: #1a1a1a;
+    --text-secondary: #555555;
+    --text-muted: #888888;
+    --accent-arriving: #00a651;
+}
+
+/* ============================================
+   BASE STYLES
+   ============================================ */
 body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--bg-primary);
+    color: var(--text-primary);
     min-height: 100vh;
-    padding: 20px;
-    color: #333;
+    min-height: 100dvh;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
+/* ============================================
+   KIOSK CONTAINER - Full Viewport
+   ============================================ */
 .container {
-    max-width: 800px;
-    margin: 0 auto;
-    background: white;
-    border-radius: 20px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-primary);
     overflow: hidden;
 }
 
+/* ============================================
+   HEADER - Minimal Swiss Style
+   ============================================ */
 header {
-    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-    color: white;
-    padding: 12px 20px;
+    background: var(--bg-secondary);
+    padding: var(--space-md) var(--space-xl);
     display: flex;
     justify-content: space-between;
     align-items: center;
+    border-bottom: 1px solid var(--bg-card);
+    flex-shrink: 0;
 }
 
-header h1 {
-    font-size: 1.2em;
-    margin: 0;
-    font-weight: 600;
-}
-
-.last-updated {
-    font-size: 0.85em;
-    opacity: 0.8;
-    font-weight: 300;
-}
-
-/* Header section toggles */
 .header-toggles {
     display: flex;
-    gap: 8px;
+    gap: var(--space-md);
 }
 
 .section-toggle {
-    border: none;
-    border-radius: 6px;
-    padding: 6px 14px;
-    font-size: 0.85em;
+    background: transparent;
+    border: 1px solid var(--text-muted);
+    color: var(--text-muted);
+    padding: var(--space-sm) var(--space-lg);
+    font-size: var(--font-small);
     font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-height: var(--touch-min);
 }
 
 .section-toggle.active {
-    background: white;
-    color: #1e3c72;
-}
-
-.section-toggle:not(.active) {
-    background: transparent;
-    color: rgba(255, 255, 255, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: var(--text-primary);
+    color: var(--bg-primary);
+    border-color: var(--text-primary);
 }
 
 .section-toggle:not(.active):hover {
-    color: rgba(255, 255, 255, 0.8);
-    border-color: rgba(255, 255, 255, 0.5);
+    border-color: var(--text-secondary);
+    color: var(--text-secondary);
 }
 
-/* Hidden sections */
+/* Current Time Clock - Prominent Swiss Style */
+.current-time {
+    font-size: var(--font-large);
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+}
+
+.last-updated {
+    font-size: var(--font-micro);
+    color: var(--text-muted);
+    font-weight: 400;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.last-updated.loading {
+    opacity: 0.5;
+}
+
+.last-updated.error {
+    color: var(--status-high);
+}
+
+/* ============================================
+   MAIN CONTENT - Swiss Grid
+   ============================================ */
+main {
+    flex: 1;
+    padding: var(--space-xl);
+    overflow: hidden;
+}
+
+.sections-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-xl);
+    height: 100%;
+}
+
+/* ============================================
+   ARRIVAL SECTIONS
+   ============================================ */
+.arrival-section {
+    background: var(--bg-secondary);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
 .arrival-section.hidden {
     display: none;
 }
 
-main {
-    padding: 30px;
-}
-
-.sections-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
-
-.arrival-section {
-    padding: 25px;
-    background: #f8f9fa;
-    border-radius: 15px;
-    border-left: 4px solid #667eea;
+/* When only one section visible, span full width */
+.arrival-section:only-child {
+    grid-column: 1 / -1;
 }
 
 .section-header {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 15px;
+    justify-content: space-between;
+    padding: var(--space-lg) var(--space-xl);
+    border-bottom: 1px solid var(--bg-card);
+    flex-shrink: 0;
 }
 
 .arrival-section h2 {
-    font-size: 1.5em;
-    margin-bottom: 0;
-    color: #1e3c72;
+    font-size: var(--font-large);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--text-secondary);
+    margin: 0;
 }
 
-.header-badges {
+/* ============================================
+   FILTER BADGES - Swiss Minimal
+   ============================================ */
+.header-badges,
+.filter-badges {
     display: flex;
-    gap: 8px;
+    gap: var(--space-md);
     align-items: center;
 }
 
-.route-badge.header-badge {
-    width: 22px !important;
-    height: 22px !important;
-    font-size: 0.75em !important;
-}
-
-/* Filter badge toggle styles */
-.filter-badges {
-    display: flex;
-    gap: 8px;
-}
-
 .filter-badge {
-    border: none;
     cursor: pointer;
-    transition: opacity 0.2s, transform 0.2s, box-shadow 0.2s;
-    position: relative;
-}
-
-.filter-badge:hover {
-    transform: scale(1.1);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    border: none;
+    min-width: var(--touch-min);
+    min-height: var(--touch-min);
 }
 
 .filter-badge.active {
     opacity: 1;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .filter-badge:not(.active) {
-    opacity: 0.35;
-    box-shadow: none;
+    opacity: 0.3;
 }
 
 .filter-badge:not(.active):hover {
-    opacity: 0.6;
+    opacity: 0.5;
 }
 
-/* Make subway and bus sections span full width on tablet landscape */
-.subway-section-full,
-.bus-section-full,
-.times-square-section-full {
-    grid-column: 1 / -1;
-}
-
-/* Bus filter badges - wider for text */
-.filter-badge.bus.header-badge {
-    width: auto !important;
-    min-width: 40px !important;
-    padding: 4px 10px !important;
-    border-radius: 6px !important;
-}
-
-.route-info {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 15px;
-    flex-wrap: wrap;
-}
-
+/* ============================================
+   ROUTE BADGES - MTA Colors
+   ============================================ */
 .route-badge {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 45px;
-    height: 45px;
+    width: var(--badge-size);
+    height: var(--badge-size);
     border-radius: 50%;
     font-weight: 700;
-    font-size: 1.3em;
+    font-size: 1.5rem;
     color: white;
     text-align: center;
     flex-shrink: 0;
 }
 
-/* MTA Official Subway Line Colors */
-.subway-1, .subway-2, .subway-3 {
-    background: #ee352e;
+.route-badge.header-badge {
+    width: 40px;
+    height: 40px;
+    font-size: 1rem;
 }
 
-.subway-4, .subway-5, .subway-6 {
-    background: #00933c;
+/* MTA Subway Colors */
+.subway-1,
+.subway-2,
+.subway-3 {
+    background: var(--mta-red);
+}
+
+.subway-4,
+.subway-5,
+.subway-6 {
+    background: var(--mta-green);
 }
 
 .subway-7 {
-    background: #b933ad;
+    background: var(--mta-purple);
 }
 
-.subway-a, .subway-c, .subway-e {
-    background: #0039a6;
+.subway-a,
+.subway-c,
+.subway-e {
+    background: var(--mta-blue);
 }
 
-.subway-b, .subway-d, .subway-f, .subway-m {
-    background: #ff6319;
+.subway-b,
+.subway-d,
+.subway-f,
+.subway-m {
+    background: var(--mta-orange);
 }
 
 .subway-g {
-    background: #6cbe45;
+    background: var(--mta-lime);
 }
 
-.subway-j, .subway-z {
-    background: #996633;
+.subway-j,
+.subway-z {
+    background: var(--mta-brown);
 }
 
 .subway-l {
-    background: #a7a9ac;
+    background: var(--mta-gray);
 }
 
-.subway-n, .subway-q, .subway-r, .subway-w {
-    background: #fccc0a;
-    color: #333;
+.subway-n,
+.subway-q,
+.subway-r,
+.subway-w {
+    background: var(--mta-yellow);
+    color: #1a1a1a;
 }
 
 .subway-s {
@@ -252,275 +348,236 @@ main {
     background: #666;
 }
 
+/* Bus Badge */
 .bus {
-    background: #0039a6;
+    background: var(--mta-blue);
     border-radius: 8px;
     width: auto;
-    min-width: 60px;
-    padding: 8px 14px;
-    font-size: 1.1em;
+    min-width: 70px;
+    padding: var(--space-sm) var(--space-md);
+    font-size: 1.1rem;
 }
 
+.filter-badge.bus.header-badge {
+    width: auto;
+    min-width: 44px;
+    height: 32px;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    border-radius: 5px;
+}
+
+/* Limited Badge */
 .route-badge.limited {
-    background: #dc3545;
-    color: white;
-    font-size: 0.75em;
+    background: var(--status-high);
+    font-size: var(--font-micro);
     font-weight: 600;
-    padding: 5px 12px;
-    border-radius: 10px;
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: 4px;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    white-space: nowrap;
-    display: inline-block;
-    width: auto !important;
-    height: auto !important;
-    min-width: fit-content;
-    border-radius: 10px !important;
+    letter-spacing: 0.05em;
+    width: auto;
+    height: auto;
 }
 
-.direction {
-    color: #666;
-    font-size: 0.95em;
-    font-style: italic;
-}
-
+/* ============================================
+   ARRIVALS LIST - Swiss Table Style
+   ============================================ */
 .arrivals {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0;
+}
+
+/* Hide scrollbar for cleaner look */
+.arrivals::-webkit-scrollbar {
+    width: 0;
+    display: none;
 }
 
 .arrival-item {
-    background: white;
-    padding: 18px;
-    border-radius: 10px;
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    transition: all 0.2s ease;
-}
-
-.arrival-item.clickable-train {
-    cursor: pointer !important;
-    position: relative;
-    user-select: none;
-}
-
-.arrival-item.clickable-train:hover {
-    background: #f8f9fa !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    transform: translateY(-1px);
-}
-
-.arrival-item.clickable-train.expanded {
-    background: #f0f7ff;
-    border: 2px solid #0039a6;
-    box-shadow: 0 4px 12px rgba(0, 57, 166, 0.2);
-}
-
-.arrival-item.clickable-train.expanded:hover {
-    background: #e0efff !important;
-}
-
-.times-square-info {
-    margin-top: 10px;
-    padding: 10px;
-    background: #e8f4f8;
-    border-radius: 6px;
-    border-left: 3px solid #0039a6;
-}
-
-.times-square-label {
-    font-size: 0.85em;
-    color: #666;
-    font-weight: 600;
-    margin-bottom: 4px;
-}
-
-.times-square-time {
-    font-size: 1.1em;
-    color: #0039a6;
-    font-weight: 700;
-}
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    transition: transform 0.2s, box-shadow 0.2s;
+    justify-content: space-between;
+    padding: var(--space-lg) var(--space-xl);
+    border-bottom: 1px solid var(--bg-card);
+    cursor: pointer;
+    transition: background 0.15s ease;
+    flex-wrap: wrap;
 }
 
 .arrival-item:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    background: var(--bg-card);
+}
+
+.arrival-item:last-child {
+    border-bottom: none;
 }
 
 .arrival-info {
     display: flex;
     align-items: center;
-    gap: 15px;
-    flex-wrap: wrap;
-}
-
-.arrival-service-badges {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.arrival-location {
-    color: #333;
-    font-size: 1.4em;
-    font-family: Helvetica, 'Helvetica Neue', Arial, sans-serif;
-    font-weight: 500;
-}
-
-.arrival-route {
-    font-weight: 700;
-    font-size: 1.2em;
+    gap: var(--space-lg);
+    flex: 1;
+    min-width: 0;
 }
 
 .arrival-details {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--space-xs);
+    min-width: 0;
+}
+
+.arrival-route {
+    font-size: var(--font-medium);
+    font-weight: 700;
+    color: var(--text-primary);
 }
 
 .arrival-type {
-    font-size: 1.4em;
-    color: #333;
-    font-family: Helvetica, 'Helvetica Neue', Arial, sans-serif;
-    font-weight: 500;
-}
-
-.service-indicator {
-    display: inline-block;
-    background: #dc3545;
-    color: white;
-    font-size: 0.65em;
-    font-weight: 600;
-    padding: 2px 6px;
-    border-radius: 4px;
-    margin-right: 8px;
-    vertical-align: middle;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.arrival-occupancy {
-    margin-top: 4px;
-    font-size: 0.85em;
-}
-
-.occupancy-info {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    width: 100%;
-}
-
-.occupancy-badge {
-    display: inline-block;
-    padding: 4px 8px;
-    border-radius: 6px;
-    font-size: 0.85em;
-    font-weight: 600;
-}
-
-.status-bar-container {
-    width: 100%;
-    height: 8px;
-    background-color: #e0e0e0;
-    border-radius: 4px;
+    font-size: var(--font-medium);
+    color: var(--text-secondary);
+    font-weight: 400;
+    white-space: nowrap;
     overflow: hidden;
-    position: relative;
+    text-overflow: ellipsis;
 }
 
-.status-bar-fill {
-    height: 100%;
-    border-radius: 4px;
-    transition: width 0.3s ease, background-color 0.3s ease;
+.arrival-location {
+    font-size: var(--font-small);
+    color: var(--text-muted);
 }
 
-.status-bar-low {
-    background-color: #28a745; /* Green */
-}
-
-.status-bar-medium {
-    background-color: #ffc107; /* Yellow */
-}
-
-.status-bar-high {
-    background-color: #dc3545; /* Red */
-}
-
-.occupancy-status-bar {
-    width: 100%;
-}
-
-
-.occupancy-empty,
-.occupancy-many {
-    background: #d4edda;
-    color: #155724;
-}
-
-.occupancy-few {
-    background: #fff3cd;
-    color: #856404;
-}
-
-.occupancy-standing {
-    background: #ffeaa7;
-    color: #d63031;
-}
-
-.occupancy-crushed,
-.occupancy-full {
-    background: #f8d7da;
-    color: #721c24;
-}
-
-.occupancy-not-accepting {
-    background: #e2e3e5;
-    color: #383d41;
-}
-
+/* ============================================
+   ARRIVAL TIME - Hero Typography
+   ============================================ */
 .arrival-time {
-    font-size: 2em;
+    font-size: var(--font-hero);
     font-weight: 700;
-    color: #667eea;
-    min-width: 80px;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
     text-align: right;
+    flex-shrink: 0;
+    min-width: 140px;
+    font-variant-numeric: tabular-nums;
 }
 
 .arrival-time.minutes {
-    font-size: 2.5em;
+    font-size: var(--font-hero);
 }
 
 .arrival-time.arriving {
-    color: #28a745;
+    color: var(--accent-arriving);
     animation: pulse 1.5s ease-in-out infinite;
 }
 
 @keyframes pulse {
-    0%, 100% {
+
+    0%,
+    100% {
         opacity: 1;
     }
+
     50% {
-        opacity: 0.7;
+        opacity: 0.6;
     }
 }
 
+/* ============================================
+   TIMES SQUARE ETA (Inline below station)
+   ============================================ */
+.times-square-eta {
+    font-size: var(--font-small);
+    color: var(--text-muted);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    margin-top: var(--space-xs);
+}
+
+/* ============================================
+   OCCUPANCY INDICATORS
+   ============================================ */
+.arrival-occupancy {
+    margin-top: var(--space-xs);
+}
+
+.occupancy-badge {
+    display: inline-block;
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: 4px;
+    font-size: var(--font-micro);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.occupancy-empty,
+.occupancy-many {
+    background: rgba(61, 153, 112, 0.2);
+    color: var(--status-low);
+}
+
+.occupancy-few {
+    background: rgba(255, 220, 0, 0.2);
+    color: var(--status-medium);
+}
+
+.occupancy-standing,
+.occupancy-crushed,
+.occupancy-full {
+    background: rgba(255, 65, 54, 0.2);
+    color: var(--status-high);
+}
+
+/* Bus Occupancy Bar - Swiss Style */
+.bus-occupancy {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-top: var(--space-xs);
+}
+
+.occupancy-bar {
+    width: 60px;
+    height: 6px;
+    background: var(--bg-card);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.occupancy-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.occupancy-label {
+    font-size: var(--font-micro);
+    color: var(--text-muted);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* ============================================
+   STATES - Loading, Empty, Error
+   ============================================ */
 .no-arrivals {
-    padding: 20px;
+    padding: var(--space-2xl);
     text-align: center;
-    color: #999;
-    font-style: italic;
+    color: var(--text-muted);
+    font-size: var(--font-medium);
+    font-style: normal;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
 }
 
 .loading {
-    padding: 20px;
+    padding: var(--space-2xl);
     text-align: center;
-    color: #999;
-    position: relative;
+    color: var(--text-muted);
 }
 
 .loading::after {
@@ -529,254 +586,128 @@ main {
 }
 
 @keyframes dots {
-    0%, 20% { content: '.'; }
-    40% { content: '..'; }
-    60%, 100% { content: '...'; }
+
+    0%,
+    20% {
+        content: '.';
+    }
+
+    40% {
+        content: '..';
+    }
+
+    60%,
+    100% {
+        content: '...';
+    }
 }
 
 .error {
-    padding: 20px;
+    padding: var(--space-xl);
     text-align: center;
-    color: #721c24;
-    background: #f8d7da;
-    border-radius: 8px;
-    border: 1px solid #f5c6cb;
+    color: var(--status-high);
+    background: rgba(255, 65, 54, 0.1);
+    border: 1px solid var(--status-high);
 }
 
-.error-icon {
-    font-size: 2em;
-    margin-bottom: 10px;
-    display: block;
-}
-
-.error-message {
-    font-weight: 600;
-    margin-bottom: 8px;
-    font-size: 1.1em;
-}
-
-.error-hint {
-    font-size: 0.9em;
-    color: #856404;
-    margin-top: 8px;
-    font-style: italic;
-}
-
-.last-updated.loading {
-    opacity: 0.7;
-    font-style: italic;
-}
-
-.last-updated.error {
-    color: #dc3545;
-    font-weight: 600;
-}
-
-.service-warnings {
-    display: none;
-    background: #fff3cd;
-    border: 1px solid #ffc107;
-    border-radius: 8px;
-    padding: 12px 16px;
-    margin-top: 15px;
-    color: #856404;
-    font-size: 0.9em;
-    align-items: center;
-    gap: 10px;
-}
-
-.service-warnings .warning-icon {
-    font-size: 1.2em;
+/* ============================================
+   FOOTER - Minimal
+   ============================================ */
+footer {
+    padding: var(--space-md) var(--space-xl);
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--bg-card);
+    text-align: center;
     flex-shrink: 0;
 }
 
-.service-warnings .warning-text {
-    flex: 1;
-}
-
-.refresh-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    transform: none !important;
-}
-
-footer {
-    padding: 20px 30px;
-    background: #f8f9fa;
-    text-align: center;
-    border-top: 1px solid #dee2e6;
-}
-
 .refresh-btn {
-    background: #667eea;
-    color: white;
-    border: none;
-    padding: 12px 30px;
-    border-radius: 25px;
-    font-size: 1em;
-    font-weight: 600;
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--text-muted);
+    padding: var(--space-sm) var(--space-xl);
+    font-size: var(--font-small);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
     cursor: pointer;
-    transition: background 0.3s, transform 0.2s;
+    transition: all 0.2s ease;
+    min-height: var(--touch-min);
 }
 
 .refresh-btn:hover {
-    background: #5568d3;
-    transform: scale(1.05);
+    background: var(--text-primary);
+    color: var(--bg-primary);
+    border-color: var(--text-primary);
 }
 
-.refresh-btn:active {
-    transform: scale(0.98);
+.refresh-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
 }
 
-/* Mobile styles */
-@media (max-width: 600px) {
-    header h1 {
-        font-size: 2em;
-    }
-
-    .arrival-section {
-        padding: 20px;
-    }
-
-    .arrival-time {
-        font-size: 1.8em;
-    }
-
-    .arrival-time.minutes {
-        font-size: 2em;
-    }
-}
-
-/* Tablet Portrait (iPad) */
-@media (min-width: 768px) {
-    .container {
-        max-width: 90%;
-    }
-
-    main {
-        padding: 40px;
-    }
-
-    header {
-        padding: 15px 30px;
-    }
-
-    header h1 {
-        font-size: 1.4em;
-    }
-
+/* ============================================
+   RESPONSIVE - Portrait Fallback
+   ============================================ */
+@media (max-width: 900px),
+(orientation: portrait) {
     .sections-grid {
-        display: grid;
         grid-template-columns: 1fr;
-        gap: 30px;
-    }
-
-    .arrival-section {
-        margin-bottom: 0;
-        padding: 30px;
-    }
-
-    .arrival-section h2 {
-        font-size: 1.7em;
-    }
-
-    .arrival-item {
-        padding: 22px;
+        gap: var(--space-lg);
     }
 
     .arrival-time {
-        font-size: 2.2em;
+        font-size: 3rem;
         min-width: 100px;
     }
 
-    .arrival-time.minutes {
-        font-size: 2.8em;
-    }
-
     .route-badge {
-        width: 55px;
-        height: 55px;
-        font-size: 1.5em;
+        width: 48px;
+        height: 48px;
+        font-size: 1.25rem;
     }
 
-    .bus {
-        padding: 10px 18px;
-        font-size: 1.3em;
-    }
-
-    .refresh-btn {
-        padding: 16px 40px;
-        font-size: 1.1em;
-    }
-
-    /* Larger filter badges for tablet touch */
-    .filter-badge.header-badge {
-        width: 36px !important;
-        height: 36px !important;
-        font-size: 1em !important;
-    }
-
-    .filter-badge.bus.header-badge {
-        width: auto !important;
-        height: auto !important;
-        min-width: 50px !important;
-        padding: 8px 14px !important;
-        font-size: 1em !important;
-    }
-
-    .filter-badges {
-        gap: 12px;
-    }
-}
-
-/* Tablet Landscape (iPad) - 2 column layout */
-@media (min-width: 1024px) {
-    .container {
-        max-width: 95%;
-        max-width: min(95%, 1400px);
+    header {
+        padding: var(--space-sm) var(--space-md);
     }
 
     main {
-        padding: 50px;
+        padding: var(--space-md);
     }
 
-    .sections-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 40px;
-    }
-
-    .arrival-section {
-        padding: 35px;
+    .section-header {
+        padding: var(--space-md);
     }
 
     .arrival-item {
-        padding: 24px;
-    }
-
-    .arrival-time {
-        font-size: 2.4em;
-        min-width: 110px;
-    }
-
-    .arrival-time.minutes {
-        font-size: 3em;
+        padding: var(--space-md);
     }
 }
 
-/* Large screens - better utilization */
-@media (min-width: 1400px) {
-    .container {
-        max-width: 1400px;
+/* ============================================
+   SCREEN BURN PREVENTION (24/7 Use)
+   Subtle position shift every animation cycle
+   ============================================ */
+@keyframes antiburn {
+
+    0%,
+    100% {
+        transform: translate(0, 0);
     }
 
-    .arrival-section h2 {
-        font-size: 1.9em;
+    25% {
+        transform: translate(1px, 0);
     }
 
-    .route-badge {
-        width: 60px;
-        height: 60px;
-        font-size: 1.6em;
+    50% {
+        transform: translate(0, 1px);
+    }
+
+    75% {
+        transform: translate(-1px, 0);
     }
 }
 
+.container {
+    animation: antiburn 300s ease-in-out infinite;
+}
