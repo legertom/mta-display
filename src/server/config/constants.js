@@ -23,10 +23,11 @@ module.exports = {
     },
     // Map route to the "City" destination stop we care about for 'Times Square' lookup
     DESTINATION_STOPS: {
-        'Q': 'R16N', // Times Sq - 42 St
-        'N': 'R16N',
-        '2': '127N', // Times Sq - 42 St
-        '3': '127N',
-        '5': '127N', // (Late nights/Weekends often shares track)
+        'Q': { stopId: 'R16N', label: 'Times Sq' },
+        'N': { stopId: 'R16N', label: 'Times Sq' },
+        '2': { stopId: '127N', label: 'Times Sq' },
+        '3': { stopId: '127N', label: 'Times Sq' },
+        '5': { stopId: '127N', label: 'Times Sq' },
+        'B': { stopId: 'D15N', label: 'Rockefeller Ctr' },
     },
 };

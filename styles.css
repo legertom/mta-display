@@ -430,6 +430,12 @@ main {
     color: var(--text-muted);
 }
 
+.destination-eta {
+    font-size: var(--font-small);
+    color: var(--text-secondary);
+    font-weight: 400;
+}
+
 /* ============================================
    ARRIVAL TIME - Hero Typography
    ============================================ */

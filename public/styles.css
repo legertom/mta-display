@@ -488,10 +488,10 @@ main {
 /* ============================================
    TIMES SQUARE ETA (Inline below station)
    ============================================ */
-.times-square-eta {
+.destination-eta {
     font-size: var(--font-small);
-    color: var(--text-muted);
-    font-weight: 500;
+    color: var(--text-secondary);
+    font-weight: 400;
     letter-spacing: 0.02em;
     margin-top: var(--space-xs);
 }

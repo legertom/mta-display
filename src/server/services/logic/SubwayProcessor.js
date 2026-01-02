@@ -85,15 +85,16 @@ class SubwayProcessor {
                                     arrival.occupancyPercentage = vehicleData.occupancyPercentage;
                                 }
 
-                                // Look ahead for Times Square
-                                const destMinutes = this._calculateDestinationTime(
+                                // Look ahead for Destination (Times Sq / Rockefeller)
+                                const destInfo = this._calculateDestinationTime(
                                     entity.tripUpdate,
                                     targetRoute,
                                     minutes,
                                     now
                                 );
-                                if (destMinutes !== null) {
-                                    arrival.destMinutes = destMinutes;
+                                if (destInfo) {
+                                    arrival.destMinutes = destInfo.minutes;
+                                    arrival.destLabel = destInfo.label;
                                 }
 
                                 arrivals.push(arrival);
@@ -124,16 +125,20 @@ class SubwayProcessor {
     }
 
     _calculateDestinationTime(tripUpdate, routeId, currentMinutes, now) {
-        const destStopId = DESTINATION_STOPS[routeId];
-        if (!destStopId) return null;
+        const destConfig = DESTINATION_STOPS[routeId];
+        if (!destConfig) return null;
 
-        const destUpdate = tripUpdate.stopTimeUpdate.find(u => u.stopId === destStopId);
+        const destUpdate = tripUpdate.stopTimeUpdate.find(u => u.stopId === destConfig.stopId);
         if (destUpdate) {
             const destTime = destUpdate.arrival?.time || destUpdate.departure?.time;
             if (destTime) {
                 const destMins = Math.round((destTime - now) / 60);
                 if (destMins > currentMinutes) {
-                    return destMins;
+                    console.log(`[SubwayProcessor] ${routeId} Destination: ${destConfig.label} (${destMins}m)`);
+                    return {
+                        minutes: destMins,
+                        label: destConfig.label
+                    };
                 }
             }
         }

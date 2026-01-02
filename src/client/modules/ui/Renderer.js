@@ -17,51 +17,9 @@ export class Renderer {
 
         // Subscribe to updates
         appStore.subscribe(this.render);
-
-        // Bind Interactions (Filter Toggles)
-        this.bindEvents();
     }
 
-    bindEvents() {
-        // Filter Toggles
-        document.querySelectorAll('.filter-badge').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const route = e.target.dataset.route;
-                const type = e.target.classList.contains('bus-filter') ? 'bus' : 'subway';
-                this.toggleFilter(type, route);
-            });
-        });
 
-        // Optional: Manual refresh via keyboard (for debugging)
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'r' && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault();
-                window.dispatchEvent(new Event('mta-refresh'));
-            }
-        });
-    }
-
-    toggleFilter(type, route) {
-        const currentFilters = appStore.getState().filters[type];
-        let newFilters;
-
-        if (currentFilters.includes(route)) {
-            if (currentFilters.length > 1) {
-                newFilters = currentFilters.filter(r => r !== route);
-            } else {
-                return; // Don't remove last one
-            }
-        } else {
-            newFilters = [...currentFilters, route];
-        }
-
-        appStore.setState({
-            filters: {
-                ...appStore.getState().filters,
-                [type]: newFilters
-            }
-        });
-    }
 
     render(state) {
         // Note: lastUpdated is now managed by main.js countdown timer
@@ -91,8 +49,6 @@ export class Renderer {
             'No buses arriving'
         );
 
-        // 4. Update Filter Badges UI
-        this.updateBadges(state.filters);
     }
 
     renderList(container, dataGroup, activeFilters, emptyMsg) {
@@ -115,17 +71,7 @@ export class Renderer {
         }
     }
 
-    updateBadges(filters) {
-        document.querySelectorAll('.filter-badge').forEach(btn => {
-            const route = btn.dataset.route;
-            const type = btn.classList.contains('bus-filter') ? 'bus' : 'subway';
-            if (filters[type].includes(route)) {
-                btn.classList.add('active');
-            } else {
-                btn.classList.remove('active');
-            }
-        });
-    }
+
 }
 
 export const renderer = new Renderer();

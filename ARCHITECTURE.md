@@ -8,16 +8,20 @@ This section provides a high-level overview of the project's directory and file 
 
 ```
 mta-display/
-├── api/                   # Vercel Serverless Function entry point
-│   └── index.js           # Adapter for Vercel
+├── api/                   # Vercel Serverless Function (Monolithic entry point)
+│   └── index.js           # Independent server implementation for Vercel
 ├── public/                # Static assets hosted by Vercel
-│   └── images/            # (Assumed) Images folder
-├── src/                   # Main source code
+│   └── images/            # Images folder
+├── src/                   # Main source code (Local Development)
 │   ├── client/            # Frontend application (Vanilla JS)
 │   │   ├── main.js        # Frontend entry point
-│   │   └── modules/       # Client-side modules/components
+│   │   └── modules/       # Client-side modules
+│   │       ├── api/       # API integration
+│   │       ├── state/     # State management
+│   │       ├── ui/        # UI components and rendering
+│   │       └── utils/     # Frontend utilities
 │   └── server/            # Backend application (Node.js/Express)
-│       ├── index.js       # Server entry point (local dev & start)
+│       ├── index.js       # Local Server entry point
 │       ├── app.js         # Express app configuration
 │       ├── config/        # Environment and app configuration
 │       ├── controllers/   # API route controllers
@@ -33,21 +37,22 @@ mta-display/
 
 ## 2. High-Level System Diagram
 
-The system follows a standard client-server architecture, deployable as a monolithic node app or as a serverless application on Vercel.
+The system follows a standard client-server architecture but maintains **two distinct backend implementations** to support different deployment targets.
+
+> [!WARNING]
+> There is significant logic duplication between `api/index.js` (Vercel) and `src/server/` (Local). Changes to backend logic (e.g., data fetching, parsing) must often be applied to **both** locations to ensure consistency between local development and production.
 
 ```
 [User Browser]
       |
       | HTTP/HTTPS
       v
-[Vercel / Node Server]
-      |
-      +---> [Static Assets (HTML/CSS/JS)]
-      |
-      +---> [API Routes (/api/*)]
-                  |
-                  v
-[MTA GTFS-Realtime API] <--- GTFS Buffer
+[Vercel (Production)]        OR        [Node Server (Local)]
+      |                                      |
+      | (`api/index.js`)                     | (`src/server/index.js`)
+      |                                      |
+      v                                      v
+[MTA GTFS-Realtime API] <--- GTFS Buffer --+
 ```
 
 ## 3. Core Components
@@ -56,15 +61,18 @@ The system follows a standard client-server architecture, deployable as a monoli
 *   **Name**: MTA Display Client
 *   **Description**: A lightweight Vanilla JavaScript application that renders real-time subway arrival data. It consumes the backend API to update the UI dynamically.
 *   **Technologies**: HTML5, CSS3, Vanilla JavaScript (ES Modules).
-*   **Key Files**: `index.html`, `styles.css`, `src/client/main.js`.
+*   **Key Files**: `index.html`, `styles.css`, `src/client/main.js`, `src/client/modules/{api,state,ui,utils}/`.
 
 ### 3.2. Backend Services
 *   **Name**: MTA Display Server
-*   **Description**: An Express.js application acting as a proxy and data transformer for the NYC MTA Realtime API. It handles GTFS-realtime buffer parsing and provides a clean JSON API for the frontend.
+*   **Description**: An Express.js application acting as a proxy and data transformer for the NYC MTA Realtime API.
+*   **Implementations**:
+    1.  **Local (`src/server/`)**: A modular, structured Express app using controllers and services.
+    2.  **Production (`api/index.js`)**: A monolithic, standalone script specialized for Vercel Serverless Functions.
 *   **Technologies**: Node.js, Express, `gtfs-realtime-bindings`, `axios`.
 *   **Deployment**:
-    *   **Local**: Standard Node.js process (`npm start`).
-    *   **Production**: Vercel Serverless Functions (via `api/index.js`).
+    *   **Local**: Standard Node.js process (`npm start` runs `src/server/index.js`).
+    *   **Production**: Vercel Serverless Functions (uses `api/index.js`).
 
 ## 4. Data Stores
 *   **In-Memory**: The application currently processes real-time data on the fly and does not appear to maintain a persistent database. It relies on fetching fresh data from the MTA API.
