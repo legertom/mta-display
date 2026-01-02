@@ -3,6 +3,7 @@ import { api } from './modules/api/MtaClient.js';
 import { renderer } from './modules/ui/Renderer.js';
 import { ThemeManager } from './modules/ui/ThemeManager.js';
 import { TimeManager } from './modules/ui/TimeManager.js';
+import { FilterManager } from './modules/ui/FilterManager.js';
 
 const UPDATE_INTERVAL = 30000; // 30 seconds
 
@@ -33,6 +34,7 @@ function init() {
     // 1. Initialize Managers
     ThemeManager.init();
     TimeManager.init(UPDATE_INTERVAL);
+    FilterManager.init();
     renderer.init();
 
     // 2. Initial Fetch
