@@ -27,7 +27,6 @@ mta-display/
 │       ├── services/      # Business logic (e.g., MTA integration)
 │       └── utils/         # Shared utilities
 ├── .env                   # Environment variables (not committed)
-├── index.html             # (Legacy/Root) HTML entry point
 ├── package.json           # Project dependencies and scripts
 └── vercel.json            # Deployment configuration for Vercel
 ```

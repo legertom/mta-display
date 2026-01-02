@@ -128,14 +128,18 @@ Key behavior:
 
 ## Frontend architecture
 
-Relevant files (two variants):
-- Root: `index.html`, `app.js`, `styles.css`.
-- Public: `public/index.html`, `public/app.js`, `public/styles.css`.
+Relevant files:
+- `public/index.html` - Main HTML entry point
+- `public/js/main.v2.js` - Frontend entry point (ES Module)
+- `public/js/modules/` - Client-side modules (Api, UI, State)
+- `public/styles.css` - Global styles (single source of truth)
 
-Both variants share the same overall approach:
+> **Note**: All frontend assets live in `public/`. There is no duplicate "root" variant. Changes to CSS or HTML should only be made to files in `public/`.
+
+Core architecture:
 
 - Plain HTML/CSS/JS, no framework.
-- `app.js` runs in the browser, polls `/api/arrivals` every 30 seconds (with retry/backoff and user-friendly error states), and updates DOM containers for subway and bus arrivals.
+- The frontend polls `/api/arrivals` every 30 seconds (with retry/backoff and user-friendly error states), and updates DOM containers for subway and bus arrivals.
 - Local state/features:
   - Subway route filters are persisted in `localStorage` under a key like `mta-subway-filters`.
   - Filters are toggled via `.filter-badge` elements; the active routes drive client-side filtering in `renderFilteredSubwayArrivals`.
@@ -143,16 +147,12 @@ Both variants share the same overall approach:
   - Raw JSON from `/api/arrivals` is normalized into a flat array of arrival objects (subway arrivals tagged with station names; bus arrivals tagged with route, location, and service type).
   - `createArrivalItem` constructs DOM for each row, including:
     - Subway-style circular route badges with official line colors.
-    - Bus-style pill badges, including a separate "Limited" badge for B41 limited buses.
+    - Bus-style rectangular badges with aspect ratio controlled by `--bus-badge-ratio` CSS variable.
     - An occupancy bar (no textual counts) when occupancy or passenger data is available.
   - Time labels are humanized ("Arriving", "1 min", "N mins").
 - Layout/styling:
   - `styles.css` defines a responsive, card-based layout using a central `.container`, with CSS grid used at tablet/desktop breakpoints.
-  - There is a unified subway section and either:
-    - Separate sections for B41 and B49 (public variant), or
-    - A unified bus section with per-route filters (root variant).
-
-When making frontend changes, be aware that there are effectively **two copies** of the UI (root and `public/`). For non-trivial changes, update both or consolidate the app to a single source of truth before refactoring.
+  - CSS design tokens in `:root` control badge sizing and aspect ratios for consistency.
 
 ## Helper script: stop ID discovery
 

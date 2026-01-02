@@ -75,6 +75,7 @@ a[x-apple-data-detectors] {
     /* Touch Targets */
     --touch-min: 48px;
     --badge-size: 56px;
+    --bus-badge-ratio: 1.25;
 }
 
 /* Light Mode (Day theme: 7am - 8pm) */
@@ -352,19 +353,23 @@ main {
 .bus {
     background: var(--mta-blue);
     border-radius: 8px;
-    width: auto;
-    min-width: 70px;
+    width: calc(var(--badge-size) * var(--bus-badge-ratio));
+    height: var(--badge-size);
     padding: var(--space-sm) var(--space-md);
     font-size: 1.1rem;
+    justify-content: center;
 }
 
 .filter-badge.bus.header-badge {
-    width: auto;
-    min-width: 44px;
-    height: 32px;
-    padding: 6px 12px;
-    font-size: 0.8rem;
-    border-radius: 5px;
+    width: calc(40px * var(--bus-badge-ratio));
+    height: 40px;
+    min-width: 0;
+    min-height: 0;
+    padding: var(--space-sm) var(--space-sm);
+    font-size: 0.9rem;
+    border-radius: 6px;
+    justify-content: center;
+    flex-shrink: 0;
 }
 
 /* Limited Badge */
@@ -710,7 +715,9 @@ footer {
 
 .container {
     animation: antiburn 300s ease-in-out infinite;
-}/* ============================================
+}
+
+/* ============================================
    WEATHER WIDGET - Header Integration
    ============================================ */
 .weather-widget {
@@ -721,24 +728,25 @@ footer {
     font-size: var(--font-small);
     font-weight: 500;
     margin-right: var(--space-lg);
-    padding-right: var(--space-lg);
-    border-right: 1px solid var(--bg-card);
 }
 
 .weather-icon {
-    font-size: 1.5rem;
+    font-size: 2.5rem;
     line-height: 1;
 }
 
 .weather-temp {
     color: var(--text-primary);
-    font-weight: 600;
-    font-size: var(--font-medium);
+    font-weight: 700;
+    font-size: var(--font-large);
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
 }
 
 .weather-feels-like {
-    color: var(--text-muted);
-    font-size: var(--font-micro);
+    color: var(--text-secondary);
+    font-size: var(--font-medium);
+    font-weight: 500;
     display: flex;
     align-items: center;
 }
