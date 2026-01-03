@@ -64,11 +64,12 @@ class MtaService {
     /* -------------------------------------------------------------------------- */
 
     async getBusArrivals() {
-        if (!env.BUS_TIME_API_KEY) return { b41: [], b49: [] };
+        if (!env.BUS_TIME_API_KEY) return { b41: [], b44Sbs: [], b49: [] };
 
-        const [b41Caton, b41Clarkson, b49] = await Promise.all([
+        const [b41Caton, b41Clarkson, b44Sbs, b49] = await Promise.all([
             this._fetchAndProcessBus('B41', STOPS.BUS.B41_CATON),
             this._fetchAndProcessBus('B41', STOPS.BUS.B41_CLARKSON),
+            this._fetchAndProcessBus('B44-SBS', STOPS.BUS.B44_SBS_ROGERS_CLARKSON),
             this._fetchAndProcessBus('B49', STOPS.BUS.B49_ROGERS_LENOX),
         ]);
 
@@ -80,7 +81,8 @@ class MtaService {
 
         return {
             b41: b41Final,
-            b49: filters.sortAndFilter(b49Final),
+            b44Sbs: filters.sortAndFilter(b44Sbs.map(a => ({ ...a, location: 'Rogers/Clarkson' }))),
+            b49: filters.sortAndFilter(b49Final.map(a => ({ ...a, location: 'Rogers/Lenox' }))),
         };
     }
 
@@ -89,10 +91,16 @@ class MtaService {
      */
     async _fetchAndProcessBus(routeId, stopId) {
         const url = `${FEEDS.BUS_SIRI_URL}/stop-monitoring.json`;
+
+        // SBS routes use + suffix in API (e.g., B44-SBS -> B44+)
+        const apiRouteId = routeId.endsWith('-SBS')
+            ? routeId.replace('-SBS', '+')
+            : routeId;
+
         const params = {
             key: env.BUS_TIME_API_KEY,
             MonitoringRef: stopId,
-            LineRef: `MTA NYCT_${routeId}`,
+            LineRef: `MTA NYCT_${apiRouteId}`,
         };
 
         // 1. Fetch

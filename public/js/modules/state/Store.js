@@ -40,12 +40,12 @@ export class Store {
 
 export const appStore = new Store({
     subway: { churchAve: [], winthrop: [] },
-    buses: { b41: [], b49: [] },
+    buses: { b41: [], b44Sbs: [], b49: [] },
     loading: true,
     lastUpdated: null,
     filters: {
         subway: ['B', 'Q', '2', '5'],
-        bus: ['B41', 'B49']
+        bus: ['B41', 'B44-SBS', 'B49']
     },
     errors: []
 });

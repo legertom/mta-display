@@ -14,12 +14,13 @@ module.exports = {
         BUS: {
             B41_CATON: 'MTA_303241',
             B41_CLARKSON: 'MTA_303242',
+            B44_SBS_ROGERS_CLARKSON: 'MTA_303945',
             B49_ROGERS_LENOX: 'MTA_303944',
         },
     },
     ROUTES: {
         SUBWAY: ['B', 'Q', '2', '5'],
-        BUS: ['B41', 'B49'],
+        BUS: ['B41', 'B44-SBS', 'B49'],
     },
     // Map route to the "City" destination stop we care about for 'Times Square' lookup
     DESTINATION_STOPS: {
