@@ -744,16 +744,11 @@ footer {
 }
 
 .weather-feels-like {
-    color: var(--text-secondary);
-    font-size: var(--font-medium);
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-}
-
-.weather-feels-like::before {
-    content: 'Feels ';
-    margin-right: 4px;
+    color: var(--text-primary);
+    font-size: var(--font-large);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
 }
 
 /* Adjust header layout to accommodate weather */

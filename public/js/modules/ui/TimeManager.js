@@ -13,7 +13,12 @@ export const TimeManager = {
 
     resetCountdown() {
         this.lastFetchTime = Date.now();
-        this.updateCountdown();
+        // Force update the countdown text, clearing "Refreshing..."
+        const countdownEl = document.getElementById('lastUpdated');
+        const remaining = Math.ceil(this.updateInterval / 1000);
+        if (countdownEl) {
+            countdownEl.textContent = `Refreshes in ${remaining}s`;
+        }
     },
 
     setRefreshing() {
